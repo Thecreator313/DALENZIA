@@ -163,10 +163,11 @@ export default function PublicResultsPage() {
                         </span>
                     </Link>
                     <nav className="flex items-center gap-4">
-                        <Button variant="ghost" size="sm" asChild className="hidden md:flex hover:bg-primary/5 hover:text-primary">
+                        <Button variant="ghost" size="sm" asChild className="flex hover:bg-primary/5 hover:text-primary">
                             <Link href="/login">
                                 <LogIn className="mr-2 h-4 w-4" />
-                                Official Login
+                                <span className="hidden md:inline">Official Login</span>
+                                <span className="md:hidden">Login</span>
                             </Link>
                         </Button>
                     </nav>
