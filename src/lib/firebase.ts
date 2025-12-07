@@ -8,7 +8,7 @@ import { getAnalytics } from "firebase/analytics";
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyAXEAFAgmktnkh6q9oxOBpjAwozX75XKog",
+  apiKey: "AIzaSyAXEAFAgmktnkh6q99oxOBpjAwozX75XKog",
   authDomain: "festize-2111e.firebaseapp.com",
   databaseURL: "https://festize-2111e-default-rtdb.firebaseio.com",
   projectId: "festize-2111e",

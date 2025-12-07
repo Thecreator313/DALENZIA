@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, getFirestore, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, getFirestore, onSnapshot, query, where, doc, getDoc } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,25 @@ type PublishedResult = {
     programName: string;
     categoryName: string;
     winners: Record<string, { name: string, teamName: string }[]>;
+};
+
+type TextStyle = {
+    x: number;
+    y: number;
+    fontSize: number;
+    color: string;
+    fontWeight: string;
+    textAlign: 'left' | 'center' | 'right';
+    isVisible: boolean;
+};
+
+type PosterSettings = {
+    backgroundImageUrl: string;
+    programName: TextStyle;
+    categoryName: TextStyle;
+    winner1: TextStyle;
+    winner2: TextStyle;
+    winner3: TextStyle;
 };
 
 const PodiumStep = ({ rank, winners, delay }: { rank: string, winners: { name: string, teamName: string }[], delay: number }) => {
@@ -71,6 +90,22 @@ export default function PublicResultDetailPage() {
     const router = useRouter();
     const resultId = params.resultId as string;
     const posterRef = useRef<HTMLDivElement>(null);
+    const [posterSettings, setPosterSettings] = useState<PosterSettings | null>(null);
+
+    useEffect(() => {
+        const fetchPosterSettings = async () => {
+            try {
+                const docRef = doc(db, 'settings', 'posterTemplate');
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    setPosterSettings(docSnap.data() as PosterSettings);
+                }
+            } catch (error) {
+                console.error("Error fetching poster settings:", error);
+            }
+        };
+        fetchPosterSettings();
+    }, []);
 
     const handleDownloadPoster = async () => {
         if (!posterRef.current) return;
@@ -255,92 +290,109 @@ export default function PublicResultDetailPage() {
                                                     <div className="overflow-hidden rounded-xl border border-white/10 bg-black/50 p-4 flex justify-center">
                                                         <div
                                                             ref={posterRef}
-                                                            className="w-[600px] min-h-[800px] bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-8 relative overflow-hidden flex flex-col"
+                                                            className="w-[600px] min-h-[800px] bg-white relative overflow-hidden flex flex-col shadow-2xl"
+                                                            style={{
+                                                                backgroundImage: posterSettings?.backgroundImageUrl ? `url(${posterSettings.backgroundImageUrl})` : 'none',
+                                                                backgroundSize: 'cover',
+                                                                backgroundPosition: 'center',
+                                                                backgroundColor: posterSettings?.backgroundImageUrl ? 'transparent' : '#1a1a1a'
+                                                            }}
                                                         >
-                                                            {/* Background Elements */}
-                                                            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                                                            <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-                                                            <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-20" />
-
-                                                            {/* Header */}
-                                                            <div className="relative z-10 text-center space-y-2 mb-12">
-                                                                <div className="flex justify-center mb-4">
-                                                                    <div className="p-3 rounded-xl bg-white/10 backdrop-blur-md border border-white/20">
-                                                                        <Trophy className="w-8 h-8 text-yellow-400" />
-                                                                    </div>
-                                                                </div>
-                                                                <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80">
-                                                                    Fest Central
-                                                                </h1>
-                                                                <div className="h-1 w-20 bg-gradient-to-r from-transparent via-white/30 to-transparent mx-auto" />
-                                                            </div>
-
-                                                            {/* Program Details */}
-                                                            <div className="relative z-10 text-center mb-12 space-y-2">
-                                                                <Badge variant="outline" className="px-4 py-1 border-white/20 bg-white/5 text-white/90 mb-2">
-                                                                    Official Result
-                                                                </Badge>
-                                                                <h2 className="text-4xl font-black tracking-tight text-white mb-2">
-                                                                    {result.programName}
-                                                                </h2>
-                                                                <p className="text-xl text-white/70 font-light">
-                                                                    {result.categoryName}
-                                                                </p>
-                                                            </div>
-
-                                                            {/* Winners */}
-                                                            <div className="relative z-10 flex-1 flex flex-col justify-center gap-6">
-                                                                {/* 1st Place */}
-                                                                {result.winners['1']?.map((winner, idx) => (
-                                                                    <div key={`1-${idx}`} className="bg-gradient-to-r from-yellow-500/20 to-transparent border-l-4 border-yellow-500 p-4 rounded-r-lg backdrop-blur-sm">
-                                                                        <div className="flex items-center gap-4">
-                                                                            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-400 font-bold text-xl border border-yellow-500/50">
-                                                                                1
-                                                                            </div>
-                                                                            <div>
-                                                                                <p className="text-2xl font-bold text-white">{winner.name}</p>
-                                                                                <p className="text-yellow-200/80">{winner.teamName}</p>
-                                                                            </div>
-                                                                            <Crown className="w-8 h-8 text-yellow-400 ml-auto opacity-50" />
+                                                            {!posterSettings ? (
+                                                                <div className="flex items-center justify-center h-full text-zinc-500">Loading Template...</div>
+                                                            ) : (
+                                                                <>
+                                                                    {/* Program Name */}
+                                                                    {posterSettings.programName.isVisible && (
+                                                                        <div style={{
+                                                                            position: 'absolute',
+                                                                            left: `${posterSettings.programName.x}%`,
+                                                                            top: `${posterSettings.programName.y}%`,
+                                                                            transform: 'translate(-50%, -50%)',
+                                                                            fontSize: `${posterSettings.programName.fontSize}px`,
+                                                                            color: posterSettings.programName.color,
+                                                                            fontWeight: posterSettings.programName.fontWeight,
+                                                                            textAlign: posterSettings.programName.textAlign,
+                                                                            width: '100%',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            {result.programName}
                                                                         </div>
-                                                                    </div>
-                                                                ))}
+                                                                    )}
 
-                                                                {/* 2nd Place */}
-                                                                {result.winners['2']?.map((winner, idx) => (
-                                                                    <div key={`2-${idx}`} className="bg-gradient-to-r from-slate-400/20 to-transparent border-l-4 border-slate-400 p-4 rounded-r-lg backdrop-blur-sm">
-                                                                        <div className="flex items-center gap-4">
-                                                                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-400/20 text-slate-300 font-bold text-lg border border-slate-400/50">
-                                                                                2
-                                                                            </div>
-                                                                            <div>
-                                                                                <p className="text-xl font-bold text-white/90">{winner.name}</p>
-                                                                                <p className="text-slate-300/80">{winner.teamName}</p>
-                                                                            </div>
+                                                                    {/* Category Name */}
+                                                                    {posterSettings.categoryName.isVisible && (
+                                                                        <div style={{
+                                                                            position: 'absolute',
+                                                                            left: `${posterSettings.categoryName.x}%`,
+                                                                            top: `${posterSettings.categoryName.y}%`,
+                                                                            transform: 'translate(-50%, -50%)',
+                                                                            fontSize: `${posterSettings.categoryName.fontSize}px`,
+                                                                            color: posterSettings.categoryName.color,
+                                                                            fontWeight: posterSettings.categoryName.fontWeight,
+                                                                            textAlign: posterSettings.categoryName.textAlign,
+                                                                            width: '100%',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            {result.categoryName}
                                                                         </div>
-                                                                    </div>
-                                                                ))}
+                                                                    )}
 
-                                                                {/* 3rd Place */}
-                                                                {result.winners['3']?.map((winner, idx) => (
-                                                                    <div key={`3-${idx}`} className="bg-gradient-to-r from-amber-700/20 to-transparent border-l-4 border-amber-700 p-4 rounded-r-lg backdrop-blur-sm">
-                                                                        <div className="flex items-center gap-4">
-                                                                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-700/20 text-amber-500 font-bold text-lg border border-amber-700/50">
-                                                                                3
-                                                                            </div>
-                                                                            <div>
-                                                                                <p className="text-xl font-bold text-white/90">{winner.name}</p>
-                                                                                <p className="text-amber-500/80">{winner.teamName}</p>
-                                                                            </div>
+                                                                    {/* Winner 1 */}
+                                                                    {posterSettings.winner1.isVisible && result.winners['1']?.map((winner, idx) => (
+                                                                        <div key={`1-${idx}`} style={{
+                                                                            position: 'absolute',
+                                                                            left: `${posterSettings.winner1.x}%`,
+                                                                            top: `${posterSettings.winner1.y + (idx * 5)}%`,
+                                                                            transform: 'translate(-50%, -50%)',
+                                                                            fontSize: `${posterSettings.winner1.fontSize}px`,
+                                                                            color: posterSettings.winner1.color,
+                                                                            fontWeight: posterSettings.winner1.fontWeight,
+                                                                            textAlign: posterSettings.winner1.textAlign,
+                                                                            width: '100%',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            1. {winner.name} ({winner.teamName})
                                                                         </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
+                                                                    ))}
 
-                                                            {/* Footer */}
-                                                            <div className="relative z-10 mt-auto pt-8 text-center">
-                                                                <p className="text-white/40 text-sm">Generated by Fest Central</p>
-                                                            </div>
+                                                                    {/* Winner 2 */}
+                                                                    {posterSettings.winner2.isVisible && result.winners['2']?.map((winner, idx) => (
+                                                                        <div key={`2-${idx}`} style={{
+                                                                            position: 'absolute',
+                                                                            left: `${posterSettings.winner2.x}%`,
+                                                                            top: `${posterSettings.winner2.y + (idx * 5)}%`,
+                                                                            transform: 'translate(-50%, -50%)',
+                                                                            fontSize: `${posterSettings.winner2.fontSize}px`,
+                                                                            color: posterSettings.winner2.color,
+                                                                            fontWeight: posterSettings.winner2.fontWeight,
+                                                                            textAlign: posterSettings.winner2.textAlign,
+                                                                            width: '100%',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            2. {winner.name} ({winner.teamName})
+                                                                        </div>
+                                                                    ))}
+
+                                                                    {/* Winner 3 */}
+                                                                    {posterSettings.winner3.isVisible && result.winners['3']?.map((winner, idx) => (
+                                                                        <div key={`3-${idx}`} style={{
+                                                                            position: 'absolute',
+                                                                            left: `${posterSettings.winner3.x}%`,
+                                                                            top: `${posterSettings.winner3.y + (idx * 5)}%`,
+                                                                            transform: 'translate(-50%, -50%)',
+                                                                            fontSize: `${posterSettings.winner3.fontSize}px`,
+                                                                            color: posterSettings.winner3.color,
+                                                                            fontWeight: posterSettings.winner3.fontWeight,
+                                                                            textAlign: posterSettings.winner3.textAlign,
+                                                                            width: '100%',
+                                                                            whiteSpace: 'nowrap'
+                                                                        }}>
+                                                                            3. {winner.name} ({winner.teamName})
+                                                                        </div>
+                                                                    ))}
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
