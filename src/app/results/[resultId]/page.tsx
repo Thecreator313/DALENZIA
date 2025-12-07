@@ -11,6 +11,10 @@ import { Trophy, ArrowLeft, Crown, Medal, Share2, Sparkles, Search, Loader2 } fr
 import { Badge } from '@/components/ui/badge';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import html2canvas from 'html2canvas';
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
+import { Download, FileImage } from "lucide-react";
+import { useRef } from 'react';
 
 const db = getFirestore(app);
 
@@ -66,6 +70,27 @@ export default function PublicResultDetailPage() {
     const params = useParams();
     const router = useRouter();
     const resultId = params.resultId as string;
+    const posterRef = useRef<HTMLDivElement>(null);
+
+    const handleDownloadPoster = async () => {
+        if (!posterRef.current) return;
+
+        try {
+            const canvas = await html2canvas(posterRef.current, {
+                scale: 2,
+                backgroundColor: null,
+                useCORS: true,
+            });
+
+            const image = canvas.toDataURL("image/png");
+            const link = document.createElement("a");
+            link.href = image;
+            link.download = `result-${result?.programName || 'poster'}.png`;
+            link.click();
+        } catch (error) {
+            console.error("Error generating poster:", error);
+        }
+    };
 
     useEffect(() => {
         if (!resultId) return;
@@ -208,6 +233,119 @@ export default function PublicResultDetailPage() {
                                             <Share2 className="h-4 w-4" />
                                             Share
                                         </Button>
+                                        <Dialog>
+                                            <DialogTrigger asChild>
+                                                <Button variant="default" size="sm" className="gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white border-0">
+                                                    <FileImage className="h-4 w-4" />
+                                                    View Poster
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="max-w-3xl bg-background/95 backdrop-blur-xl border-white/10">
+                                                <DialogTitle className="sr-only">Result Poster</DialogTitle>
+                                                <div className="flex flex-col gap-6">
+                                                    <div className="flex items-center justify-between">
+                                                        <h2 className="text-xl font-semibold">Result Poster</h2>
+                                                        <Button onClick={handleDownloadPoster} className="gap-2">
+                                                            <Download className="h-4 w-4" />
+                                                            Download PNG
+                                                        </Button>
+                                                    </div>
+
+                                                    {/* Poster Preview Area */}
+                                                    <div className="overflow-hidden rounded-xl border border-white/10 bg-black/50 p-4 flex justify-center">
+                                                        <div
+                                                            ref={posterRef}
+                                                            className="w-[600px] min-h-[800px] bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-8 relative overflow-hidden flex flex-col"
+                                                        >
+                                                            {/* Background Elements */}
+                                                            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                                                            <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+                                                            <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-20" />
+
+                                                            {/* Header */}
+                                                            <div className="relative z-10 text-center space-y-2 mb-12">
+                                                                <div className="flex justify-center mb-4">
+                                                                    <div className="p-3 rounded-xl bg-white/10 backdrop-blur-md border border-white/20">
+                                                                        <Trophy className="w-8 h-8 text-yellow-400" />
+                                                                    </div>
+                                                                </div>
+                                                                <h1 className="text-3xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80">
+                                                                    Fest Central
+                                                                </h1>
+                                                                <div className="h-1 w-20 bg-gradient-to-r from-transparent via-white/30 to-transparent mx-auto" />
+                                                            </div>
+
+                                                            {/* Program Details */}
+                                                            <div className="relative z-10 text-center mb-12 space-y-2">
+                                                                <Badge variant="outline" className="px-4 py-1 border-white/20 bg-white/5 text-white/90 mb-2">
+                                                                    Official Result
+                                                                </Badge>
+                                                                <h2 className="text-4xl font-black tracking-tight text-white mb-2">
+                                                                    {result.programName}
+                                                                </h2>
+                                                                <p className="text-xl text-white/70 font-light">
+                                                                    {result.categoryName}
+                                                                </p>
+                                                            </div>
+
+                                                            {/* Winners */}
+                                                            <div className="relative z-10 flex-1 flex flex-col justify-center gap-6">
+                                                                {/* 1st Place */}
+                                                                {result.winners['1']?.map((winner, idx) => (
+                                                                    <div key={`1-${idx}`} className="bg-gradient-to-r from-yellow-500/20 to-transparent border-l-4 border-yellow-500 p-4 rounded-r-lg backdrop-blur-sm">
+                                                                        <div className="flex items-center gap-4">
+                                                                            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-yellow-500/20 text-yellow-400 font-bold text-xl border border-yellow-500/50">
+                                                                                1
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-2xl font-bold text-white">{winner.name}</p>
+                                                                                <p className="text-yellow-200/80">{winner.teamName}</p>
+                                                                            </div>
+                                                                            <Crown className="w-8 h-8 text-yellow-400 ml-auto opacity-50" />
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+
+                                                                {/* 2nd Place */}
+                                                                {result.winners['2']?.map((winner, idx) => (
+                                                                    <div key={`2-${idx}`} className="bg-gradient-to-r from-slate-400/20 to-transparent border-l-4 border-slate-400 p-4 rounded-r-lg backdrop-blur-sm">
+                                                                        <div className="flex items-center gap-4">
+                                                                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-400/20 text-slate-300 font-bold text-lg border border-slate-400/50">
+                                                                                2
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-xl font-bold text-white/90">{winner.name}</p>
+                                                                                <p className="text-slate-300/80">{winner.teamName}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+
+                                                                {/* 3rd Place */}
+                                                                {result.winners['3']?.map((winner, idx) => (
+                                                                    <div key={`3-${idx}`} className="bg-gradient-to-r from-amber-700/20 to-transparent border-l-4 border-amber-700 p-4 rounded-r-lg backdrop-blur-sm">
+                                                                        <div className="flex items-center gap-4">
+                                                                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-700/20 text-amber-500 font-bold text-lg border border-amber-700/50">
+                                                                                3
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-xl font-bold text-white/90">{winner.name}</p>
+                                                                                <p className="text-amber-500/80">{winner.teamName}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+
+                                                            {/* Footer */}
+                                                            <div className="relative z-10 mt-auto pt-8 text-center">
+                                                                <p className="text-white/40 text-sm">Generated by Fest Central</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </DialogContent>
+                                        </Dialog>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="p-0">

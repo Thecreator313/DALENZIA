@@ -42,7 +42,7 @@ export const adminNavItems: NavItem[] = [
   { label: 'Program Points', href: '/admin/program-points', icon: GraduationCap },
   { label: 'ID Card Setup', href: '/admin/id-card-setup', icon: CreditCard },
   { label: 'Printouts', href: '/admin/printouts', icon: Printer },
-  { label: 'Code Latter Entry', href: '/admin/code-latter-entry', icon: FileCode },
+  { label: 'Poster Template', href: '/admin/poster-template', icon: FileCode },
   { label: 'Settings', href: '/admin/settings', icon: Settings },
   { label: 'Top Candidates', href: '/admin/top-candidates', icon: Star },
 ];
