@@ -8,14 +8,13 @@ import { getAnalytics } from "firebase/analytics";
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyAXEAFAgmktnkh6q99oxOBpjAwozX75XKog",
-  authDomain: "festize-2111e.firebaseapp.com",
-  databaseURL: "https://festize-2111e-default-rtdb.firebaseio.com",
-  projectId: "festize-2111e",
-  storageBucket: "festize-2111e.firebasestorage.app",
-  messagingSenderId: "639630372325",
-  appId: "1:639630372325:web:224209a05b7a879c08d30c",
-  measurementId: "G-1E2D60PP4R"
+  apiKey: "AIzaSyBe5kWblTFFDmNRyjnQjEiL7P_Nk2lJzj8",
+  authDomain: "dalenzia-a6175.firebaseapp.com",
+  projectId: "dalenzia-a6175",
+  storageBucket: "dalenzia-a6175.firebasestorage.app",
+  messagingSenderId: "707927135546",
+  appId: "1:707927135546:web:0792175d7791e5eb34ac03",
+  measurementId: "G-Z0PTE2ZGC4"
 };
 
 // Initialize Firebase
