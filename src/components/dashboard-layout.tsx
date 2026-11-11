@@ -4,8 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Trophy, LogOut, Loader2 } from 'lucide-react';
-import { doc, getFirestore, onSnapshot } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { FirestoreCacheProvider, useAppSettings } from '@/context/firestore-cache';
 
 import {
   SidebarProvider,
@@ -35,10 +34,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import type { User } from '@/app/admin/access-central/page';
-import type { AppSettings } from '@/app/admin/settings/page';
-
-
-const db = getFirestore(app);
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -80,25 +75,12 @@ export function DashboardLayout({ children, panel }: DashboardLayoutProps) {
   const router = useRouter();
   const [user, setUser] = React.useState<User | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [festName, setFestName] = React.useState('Fest Central');
+  const { settings } = useAppSettings();
+  const festName = settings.festName || 'Fest Central';
   
   const currentSection = panel === 'stage-control' ? 'Stage Control' : panel;
   const navItems = navItemsMap[panel];
   const [isLogoutAlertOpen, setIsLogoutAlertOpen] = React.useState(false);
-
-  React.useEffect(() => {
-    const settingsDocRef = doc(db, 'settings', 'global');
-    const unsubscribe = onSnapshot(settingsDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const settings = docSnap.data() as AppSettings;
-        if (settings.festName) {
-          setFestName(settings.festName);
-        }
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
 
   React.useEffect(() => {
     const storedUser = localStorage.getItem('fest-central-user');
@@ -198,7 +180,11 @@ export function DashboardLayout({ children, panel }: DashboardLayoutProps) {
             </Button>
           </div>
         </header>
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main className="flex-1 p-4 sm:p-6">
+          <FirestoreCacheProvider key={`${panel}:${user.id}`}>
+            {children}
+          </FirestoreCacheProvider>
+        </main>
       </SidebarInset>
     </SidebarProvider>
   );

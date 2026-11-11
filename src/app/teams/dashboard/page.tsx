@@ -1,23 +1,39 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { collection, query, where, getFirestore, onSnapshot, getDocs, Query, DocumentData } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import gsap from 'gsap';
+import { collection, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useCachedCollection, useSharedCollection } from '@/context/firestore-cache';
+import { TeamOrbitCanvas } from '@/components/team-orbit-canvas';
+import { AnimatedCounter } from '@/components/animated-counter';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { UserPlus, UserCheck, Users, ClipboardCheck, ClipboardX, Star, CheckCircle2, XCircle, AlertCircle, Loader2, ArrowRight } from "lucide-react";
+import {
+  UserPlus,
+  UserCheck,
+  Users,
+  ClipboardCheck,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Loader2,
+  ArrowRight,
+  BarChart3,
+  Sparkles,
+  Hash,
+} from "lucide-react";
 import type { User } from '@/app/admin/access-central/page';
 import type { Team } from '@/app/admin/teams/page';
 import type { Participant } from '@/app/teams/add-participants/page';
 import type { Program } from '@/app/admin/programs/page';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { motion, AnimatePresence } from 'framer-motion';
-
-const db = getFirestore(app);
+import { cn } from '@/lib/utils';
 
 type Assignment = {
+  id: string;
   programId: string;
   studentId: string;
 };
@@ -26,163 +42,137 @@ type ProgramWithParticipants = Program & {
   participantNames: string[];
 };
 
-const StatCard = ({ title, value, icon: Icon, color, delay }: { title: string, value: number, icon: any, color: string, delay: number }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay, duration: 0.5 }}
-  >
-    <Card className="border-white/10 bg-card/40 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all duration-300">
-      <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-[0.03] group-hover:opacity-[0.08] transition-opacity`} />
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <div className={`p-2 rounded-lg ${color} bg-opacity-10 text-opacity-100`}>
-          <Icon className="h-4 w-4" />
-        </div>
-      </CardHeader>
-      <CardContent className="relative z-10">
-        <div className="text-2xl font-bold">{value}</div>
-      </CardContent>
-    </Card>
-  </motion.div>
-);
-
 export default function TeamDashboard() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [team, setTeam] = useState<Team | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    participants: 0,
-    fullyAssigned: 0,
-    partiallyAssigned: 0,
-    notAssigned: 0,
-  });
-  const [recentAssignments, setRecentAssignments] = useState<ProgramWithParticipants[]>([]);
+  const [userChecked, setUserChecked] = useState(false);
+
+  const pageRef = useRef<HTMLDivElement>(null);
+  const heroAnimatedRef = useRef(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('fest-central-user');
     if (storedUser) {
-      const userData: User = JSON.parse(storedUser);
-      setCurrentUser(userData);
-    } else {
-      setLoading(false);
+      setCurrentUser(JSON.parse(storedUser));
     }
+    setUserChecked(true);
   }, []);
 
-  useEffect(() => {
-    if (!currentUser) return;
+  const { data: userTeams, loading: teamLoading } = useCachedCollection<Team>(
+    currentUser ? `query:team:${currentUser.id}` : 'query:team:none',
+    () => query(collection(db, 'teams'), where('leaderId', '==', currentUser!.id)),
+    { enabled: !!currentUser }
+  );
+  const team = userTeams[0] ?? null;
 
-    setLoading(true);
-    const q = query(collection(db, 'teams'), where('leaderId', '==', currentUser.id));
+  const { data: participants, loading: participantsLoading } = useCachedCollection<Participant>(
+    team ? `query:students:${team.id}` : 'query:students:none',
+    () => query(collection(db, 'students'), where('teamId', '==', team!.id)),
+    { enabled: !!team }
+  );
 
-    const unsubscribeTeam = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const teamDoc = snapshot.docs[0];
-        const teamData = { id: teamDoc.id, ...teamDoc.data() } as Team;
-        setTeam(teamData);
-      } else {
-        setLoading(false);
+  const { data: programsData, loading: programsLoading } = useSharedCollection<Program>('programs', {
+    enabled: !!team,
+  });
+
+  const { data: assignmentList, loading: assignmentsLoading } = useCachedCollection<Assignment>(
+    team ? `query:assignments:${team.id}` : 'query:assignments:none',
+    () => query(collection(db, 'assignments'), where('teamId', '==', team!.id)),
+    { enabled: !!team }
+  );
+
+  const { stats, recentAssignments } = useMemo(() => {
+    let fullyAssigned = 0;
+    let partiallyAssigned = 0;
+
+    programsData.forEach((program) => {
+      const assignedCount = assignmentList.filter((a) => a.programId === program.id).length;
+      if (assignedCount > 0) {
+        if (assignedCount >= program.participantsCount) fullyAssigned++;
+        else partiallyAssigned++;
       }
     });
 
-    return () => unsubscribeTeam();
+    const programsWithAssignments = new Set(assignmentList.map((a) => a.programId));
+    const notAssigned = programsData.length - programsWithAssignments.size;
 
-  }, [currentUser]);
+    const uniqueProgramIds = [...new Set(assignmentList.map((a) => a.programId))].slice(0, 5);
+    const recentProgramsData = programsData.filter((p) => uniqueProgramIds.includes(p.id));
+    const studentMap = new Map(participants.map((s) => [s.id, s.name]));
 
-
-  useEffect(() => {
-    if (!team) return;
-
-    const participantsQuery = query(collection(db, 'students'), where('teamId', '==', team.id));
-    const unsubscribeParticipants = onSnapshot(participantsQuery, (snapshot) => {
-      setStats(prev => ({ ...prev, participants: snapshot.size }));
+    const assignmentsWithNames = recentProgramsData.map((program) => {
+      const programAssignments = assignmentList.filter((a) => a.programId === program.id);
+      const participantNames = programAssignments.map(
+        (pa) => studentMap.get(pa.studentId) || 'Unknown'
+      );
+      return { ...program, participantNames };
     });
 
-    let programsUnsubscribe: () => void;
-    let assignmentsUnsubscribe: () => void;
+    return {
+      stats: {
+        participants: participants.length,
+        fullyAssigned,
+        partiallyAssigned,
+        notAssigned,
+      },
+      recentAssignments: assignmentsWithNames,
+    };
+  }, [participants, programsData, assignmentList]);
 
-    const programsQuery = collection(db, 'programs');
-    const assignmentsQuery = query(collection(db, 'assignments'), where('teamId', '==', team.id));
+  const loading =
+    !userChecked ||
+    (!!currentUser && (teamLoading || (!!team && (participantsLoading || programsLoading || assignmentsLoading))));
 
-    const studentsQuery = query(collection(db, 'students'), where('teamId', '==', team.id));
+  const totalPrograms = programsData.length;
+  const assignedProgramCount = stats.fullyAssigned + stats.partiallyAssigned;
+  const completionPct = totalPrograms > 0 ? Math.round((stats.fullyAssigned / totalPrograms) * 100) : 0;
 
-    const fetchData = async () => {
-      const programsSnapshot = await getDocs(programsQuery);
-      const programsData = programsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }) as Program);
+  useEffect(() => {
+    if (loading || !team || heroAnimatedRef.current || !pageRef.current) return;
+    heroAnimatedRef.current = true;
 
-      assignmentsUnsubscribe = onSnapshot(assignmentsQuery, async (assignmentsSnapshot) => {
-        const assignmentList = assignmentsSnapshot.docs.map(doc => doc.data() as Assignment);
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) return;
 
-        let fullyAssigned = 0;
-        let partiallyAssigned = 0;
-
-        programsData.forEach(program => {
-          const assignedCount = assignmentList.filter(a => a.programId === program.id).length;
-          if (assignedCount === 0) {
-            // Not assigned (by this team)
-          } else if (assignedCount >= program.participantsCount) {
-            fullyAssigned++;
-          } else {
-            partiallyAssigned++;
-          }
-        });
-
-        // To get not assigned, we need to know which programs this team *could* participate in.
-        // For simplicity, we'll count programs this team has *zero* assignments in.
-        const programsWithAssignments = new Set(assignmentList.map(a => a.programId));
-        const notAssigned = programsData.length - programsWithAssignments.size;
-
-        setStats(prev => ({ ...prev, fullyAssigned, partiallyAssigned, notAssigned }));
-
-        // Recent assignments
-        const uniqueProgramIds = [...new Set(assignmentList.map(a => a.programId))].slice(0, 5);
-        if (uniqueProgramIds.length > 0) {
-          const studentsSnapshot = await getDocs(studentsQuery);
-          const studentsData = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Participant);
-
-          const recentProgramsData = programsData.filter(p => uniqueProgramIds.includes(p.id));
-
-          const assignmentsWithNames = recentProgramsData.map(program => {
-            const programAssignments = assignmentList.filter(a => a.programId === program.id);
-            const participantNames = programAssignments.map(pa => {
-              return studentsData.find(s => s.id === pa.studentId)?.name || 'Unknown';
-            });
-            return { ...program, participantNames };
-          });
-          setRecentAssignments(assignmentsWithNames);
-        }
-
-
-        setLoading(false);
+    const ctx = gsap.context(() => {
+      gsap.from('.team-dash-stagger', {
+        y: 22,
+        opacity: 0,
+        duration: 0.65,
+        stagger: 0.08,
+        ease: 'power3.out',
+        clearProps: 'transform,opacity',
       });
-    }
+      gsap.from('.team-dash-card', {
+        y: 18,
+        scale: 0.96,
+        opacity: 0,
+        duration: 0.5,
+        stagger: 0.07,
+        delay: 0.15,
+        ease: 'power2.out',
+        clearProps: 'transform,opacity',
+      });
+    }, pageRef);
 
-    fetchData();
-
-
-    return () => {
-      unsubscribeParticipants();
-      if (assignmentsUnsubscribe) assignmentsUnsubscribe();
-    }
-  }, [team]);
-
+    return () => ctx.revert();
+  }, [loading, team]);
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-4rem)]">
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-6rem)] gap-4">
         <div className="relative">
-          <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl animate-pulse" />
+          <div className="absolute inset-0 rounded-full bg-primary/25 blur-xl animate-pulse" />
           <Loader2 className="h-12 w-12 animate-spin text-primary relative z-10" />
         </div>
-        <p className="text-muted-foreground animate-pulse mt-4">Loading dashboard...</p>
+        <p className="text-muted-foreground animate-pulse font-medium">Loading Team Command Center...</p>
       </div>
     );
   }
 
   if (!team) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
-        <Card className="max-w-md w-full border-white/10 bg-card/40 backdrop-blur-sm">
+      <div className="flex items-center justify-center h-[calc(100vh-6rem)]">
+        <Card className="max-w-md w-full border-border/60 bg-card/60 backdrop-blur-xl shadow-lg">
           <CardHeader>
             <CardTitle className="text-center text-xl">No Team Assigned</CardTitle>
           </CardHeader>
@@ -191,98 +181,225 @@ export default function TeamDashboard() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
+  const statItems = [
+    {
+      title: 'Total Participants',
+      value: stats.participants,
+      icon: Users,
+      href: '/teams/add-participants',
+      accent: 'text-blue-500 bg-blue-500/10 border-blue-500/20',
+      strip: 'from-sky-400 via-blue-500 to-indigo-500',
+    },
+    {
+      title: 'Fully Assigned',
+      value: stats.fullyAssigned,
+      icon: CheckCircle2,
+      href: '/teams/assign-students',
+      accent: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
+      strip: 'from-emerald-400 via-green-500 to-teal-500',
+    },
+    {
+      title: 'Partially Assigned',
+      value: stats.partiallyAssigned,
+      icon: AlertCircle,
+      href: '/teams/assign-students',
+      accent: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
+      strip: 'from-amber-400 via-yellow-500 to-orange-500',
+    },
+    {
+      title: 'Not Assigned',
+      value: stats.notAssigned,
+      icon: XCircle,
+      href: '/teams/assign-students',
+      accent: 'text-rose-500 bg-rose-500/10 border-rose-500/20',
+      strip: 'from-rose-400 via-red-500 to-pink-500',
+    },
+  ];
+
   return (
-    <div className="space-y-8 relative min-h-screen p-1">
-      {/* Dynamic Background */}
-      <div className="fixed inset-0 -z-10 h-full w-full bg-background overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/5 blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-500/5 blur-[120px]" />
+    <div ref={pageRef} className="space-y-8 relative min-h-screen pb-8">
+      {/* Ambient Background */}
+      <div className="fixed inset-0 -z-10 h-full w-full overflow-hidden pointer-events-none">
+        <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-blue-500/10 blur-[120px]" />
+        <div className="absolute top-1/3 -right-24 w-96 h-96 rounded-full bg-indigo-500/10 blur-[120px]" />
+        <div className="absolute -bottom-24 left-1/3 w-80 h-80 rounded-full bg-cyan-500/10 blur-[120px]" />
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center justify-between gap-4"
-      >
-        <div>
-          <h1 className="text-3xl font-bold font-headline tracking-tight">Team Dashboard</h1>
-          <p className="text-lg text-muted-foreground">Welcome back, <span className="font-semibold text-foreground">{team.name}</span>!</p>
-        </div>
-        <div className="flex gap-3">
-          <Button asChild className="shadow-lg shadow-primary/20">
-            <Link href="/teams/add-participants"><UserPlus className="mr-2 h-4 w-4" /> Add Participants</Link>
-          </Button>
-          <Button asChild variant="secondary" className="bg-secondary/50 hover:bg-secondary/70 backdrop-blur-sm border border-white/10">
-            <Link href="/teams/assign-students"><UserCheck className="mr-2 h-4 w-4" /> Assign Participants</Link>
-          </Button>
-        </div>
-      </motion.div>
+      {/* Hero Command Banner with Interactive Three.js Crest */}
+      <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/85 via-card/65 to-primary/10 backdrop-blur-xl shadow-xl">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.12),transparent_50%)] pointer-events-none" />
+        <div className="grid lg:grid-cols-[1.45fr_1fr] items-center gap-6 p-6 sm:p-8 relative z-10">
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <div className="team-dash-stagger inline-flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3.5 py-1 text-xs font-semibold text-primary">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                  </span>
+                  Team Hub • Live Sync
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-3 py-1 text-xs font-medium text-muted-foreground">
+                  <Hash className="h-3 w-3 text-primary" />
+                  Chest Starts #{team.startingChestNumber}
+                </span>
+              </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Participants" value={stats.participants} icon={Users} color="bg-blue-500 text-blue-500" delay={0.1} />
-        <StatCard title="Fully Assigned" value={stats.fullyAssigned} icon={CheckCircle2} color="bg-green-500 text-green-500" delay={0.2} />
-        <StatCard title="Partially Assigned" value={stats.partiallyAssigned} icon={AlertCircle} color="bg-yellow-500 text-yellow-500" delay={0.3} />
-        <StatCard title="Not Assigned" value={stats.notAssigned} icon={XCircle} color="bg-red-500 text-red-500" delay={0.4} />
+              <div className="team-dash-stagger">
+                <h1 className="text-3xl sm:text-4xl font-bold font-headline tracking-tight bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent">
+                  {team.name}
+                </h1>
+                <p className="text-muted-foreground mt-1.5 max-w-xl text-sm sm:text-base">
+                  Track team roster growth, monitor program assignment progress, and jump straight to participant registration.
+                </p>
+              </div>
+            </div>
+
+            {/* Readiness Progress Bar */}
+            <div className="team-dash-stagger rounded-2xl border border-border/60 bg-background/55 backdrop-blur-md p-4 space-y-2.5 max-w-xl">
+              <div className="flex items-center justify-between text-xs sm:text-sm">
+                <span className="font-medium text-muted-foreground">Program Readiness</span>
+                <span className="font-mono font-semibold text-foreground">
+                  {stats.fullyAssigned} / {totalPrograms} Full ({completionPct}%)
+                </span>
+              </div>
+              <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 transition-all duration-700"
+                  style={{ width: `${completionPct}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                <strong className="text-foreground">{assignedProgramCount}</strong> of {totalPrograms} programs have at least one participant assigned.
+              </p>
+            </div>
+
+            <div className="team-dash-stagger flex flex-wrap gap-3">
+              <Button
+                asChild
+                size="lg"
+                className="rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-200 bg-gradient-to-r from-blue-600 via-primary to-indigo-600 text-white border-0"
+              >
+                <Link href="/teams/add-participants"><UserPlus className="mr-2 h-4 w-4" /> Add Participants</Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="rounded-xl bg-background/60 backdrop-blur-md border-border/60 hover:border-primary/40">
+                <Link href="/teams/assign-students"><UserCheck className="mr-2 h-4 w-4" /> Assign Participants</Link>
+              </Button>
+              <Button asChild size="lg" variant="ghost" className="rounded-xl hover:bg-muted/60">
+                <Link href="/teams/reports"><BarChart3 className="mr-2 h-4 w-4" /> Reports</Link>
+              </Button>
+            </div>
+          </div>
+
+          {/* Interactive 3D Three.js Crest */}
+          <div className="relative h-60 sm:h-72 lg:h-80 w-full rounded-2xl border border-border/40 bg-gradient-to-b from-primary/5 via-transparent to-indigo-500/5 overflow-hidden">
+            <TeamOrbitCanvas variant="dashboard" pulseKey={`${stats.participants}-${stats.fullyAssigned}`} />
+            <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-background/75 backdrop-blur-md border border-border/50 px-2.5 py-1">
+                <Users className="h-3 w-3 text-sky-500" />
+                {stats.participants} Members
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-background/75 backdrop-blur-md border border-border/50 px-2.5 py-1">
+                <Sparkles className="h-3 w-3 text-indigo-500" />
+                {completionPct}% Ready
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* GSAP Animated KPI Cards */}
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {statItems.map((item) => (
+          <Link key={item.title} href={item.href} className="block group">
+            <Card className="team-dash-card relative overflow-hidden rounded-2xl border-border/60 bg-card/60 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
+              <div className={cn('h-1 w-full bg-gradient-to-r', item.strip)} />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {item.title}
+                </CardTitle>
+                <div className={cn('p-2 rounded-xl border transition-transform duration-200 group-hover:scale-110', item.accent)}>
+                  <item.icon className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent className="flex items-end justify-between">
+                <div className="text-3xl font-bold font-headline tracking-tight">
+                  <AnimatedCounter value={item.value} />
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-      >
-        <Card className="border-white/10 bg-card/40 backdrop-blur-sm overflow-hidden">
-          <CardHeader className="border-b border-white/5 bg-muted/20">
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardCheck className="w-5 h-5 text-primary" />
-              Recent Program Assignments
-            </CardTitle>
-            <CardDescription>An overview of the latest programs your team has been assigned to.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-white/5 border-white/5">
-                  <TableHead>Program Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Participants</TableHead>
+      {/* Recent Program Assignments */}
+      <Card className="team-dash-card border-border/60 bg-card/55 backdrop-blur-xl shadow-lg overflow-hidden">
+        <CardHeader className="border-b border-border/50 bg-muted/20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <ClipboardCheck className="w-5 h-5 text-primary" />
+                Recent Program Assignments
+              </CardTitle>
+              <CardDescription>Latest programs your team members are entered in.</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" asChild className="rounded-xl self-start sm:self-auto">
+              <Link href="/teams/assign-students">
+                Manage All <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent border-border/50">
+                <TableHead>Program Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Assigned Slots</TableHead>
+                <TableHead>Participants</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {recentAssignments.length > 0 ? recentAssignments.map((program) => (
+                <TableRow
+                  key={program.id}
+                  className="border-b border-border/40 hover:bg-muted/30 transition-colors"
+                >
+                  <TableCell className="font-medium">{program.name}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="capitalize bg-muted/50 border-border/60">{program.type}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono text-xs font-semibold">
+                      {program.participantNames.length} / {program.participantsCount}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1.5">
+                      {program.participantNames.map((name, idx) => (
+                        <Badge key={idx} variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">
+                          {name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                <AnimatePresence>
-                  {recentAssignments.length > 0 ? recentAssignments.map((program, index) => (
-                    <motion.tr
-                      key={program.id}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="border-b border-white/5 hover:bg-white/5 transition-colors"
-                    >
-                      <TableCell className="font-medium">{program.name}</TableCell>
-                      <TableCell><Badge variant="outline" className="capitalize bg-muted/50 border-white/10">{program.type}</Badge></TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1.5">
-                          {program.participantNames.map((name, index) => (
-                            <Badge key={index} variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">{name}</Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                    </motion.tr>
-                  )) : (
-                    <TableRow>
-                      <TableCell colSpan={3} className="h-32 text-center text-muted-foreground">
-                        No assignments have been made yet.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </AnimatePresence>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </motion.div>
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
+                    No assignments have been made yet.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

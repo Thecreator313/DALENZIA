@@ -1,15 +1,10 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  collection,
-  getFirestore,
-  onSnapshot,
-  doc,
-  getDocs,
-} from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { useState, useMemo, useCallback } from 'react';
+import { doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAppSettings, useCachedDoc, useSharedCollection } from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Users, List, Trophy, Star, Search, Award } from 'lucide-react';
@@ -28,8 +23,6 @@ import type { Team as BaseTeam } from '@/app/admin/teams/page';
 import type { Category } from '@/app/admin/categories/page';
 import type { AppSettings } from '@/app/admin/settings/page';
 
-
-const db = getFirestore(app);
 
 // Data types
 type Program = BaseProgram & { categoryName?: string };
@@ -67,81 +60,40 @@ const getGrade = (score: number) => {
 type ProgramFilter = 'all' | 'individual' | 'group' | 'specific' | 'individual-specific' | 'group-specific';
 
 export default function PrintoutsPage() {
-  const [loading, setLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
 
-  // Raw Data States
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [memberCategories, setMemberCategories] = useState<Category[]>([]);
-  const [programCategories, setProgramCategories] = useState<Category[]>([]);
-  const [pointsSettings, setPointsSettings] = useState<PointsSettings | null>(null);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [scores, setScores] = useState<Score[]>([]);
-  const [publishedStandings, setPublishedStandings] = useState<PublishedStandings | null>(null);
-  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const { data: programCategories, loading: progCatsLoading } = useSharedCollection<Category>('programCategories');
+  const { data: programs, loading: progsLoading } = useSharedCollection<Program>('programs');
+  const { data: participants, loading: studentsLoading } = useSharedCollection<Participant>('students');
+  const { data: teams, loading: teamsLoading } = useSharedCollection<Team>('teams');
+  const { data: memberCategories, loading: memCatsLoading } = useSharedCollection<Category>('memberCategories');
+  const { data: assignments, loading: assignmentsLoading } = useSharedCollection<Assignment>('assignments');
+  const { data: scores, loading: scoresLoading } = useSharedCollection<Score & { id: string }>('scores');
+  const { data: pointsSettings, loading: pointsLoading } = useCachedDoc<PointsSettings>(
+    'doc:points:gradeAndRankPoints',
+    () => doc(db, 'points', 'gradeAndRankPoints')
+  );
+  const { data: publishedStandings } = useCachedDoc<PublishedStandings>(
+    'doc:standings:team_marks',
+    () => doc(db, 'standings', 'team_marks')
+  );
+  const { settings, loading: settingsLoading } = useAppSettings();
+
+  const loading =
+    progCatsLoading ||
+    progsLoading ||
+    studentsLoading ||
+    teamsLoading ||
+    memCatsLoading ||
+    assignmentsLoading ||
+    scoresLoading ||
+    pointsLoading ||
+    settingsLoading;
 
   // Filter States
   const [topCandidatesProgramFilter, setTopCandidatesProgramFilter] = useState<ProgramFilter>('all');
   const [programResultsRankOnly, setProgramResultsRankOnly] = useState(false);
 
-  useEffect(() => {
-    let loadedCount = 0;
-    const totalCollections = 9; // Updated to include settings
-  
-    const handleInitialLoad = () => {
-      loadedCount++;
-      if (loadedCount === totalCollections) {
-        setLoading(false);
-      }
-    };
-  
-    const unsubscribes = [
-      onSnapshot(collection(db, 'programCategories'), (snap) => {
-        setProgramCategories(snap.docs.map(d => ({ id: d.id, ...d.data() } as Category)));
-        handleInitialLoad();
-      }),
-      onSnapshot(collection(db, 'programs'), (snap) => {
-        setPrograms(snap.docs.map(d => ({ id: d.id, ...d.data() } as Program)));
-        handleInitialLoad();
-      }),
-      onSnapshot(collection(db, 'students'), (snap) => {
-        setParticipants(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Participant));
-        handleInitialLoad();
-      }),
-      onSnapshot(collection(db, 'teams'), (snap) => {
-        setTeams(snap.docs.map(d => ({ id: d.id, ...d.data() } as Team)));
-        handleInitialLoad();
-      }),
-      onSnapshot(collection(db, 'memberCategories'), (snap) => {
-        setMemberCategories(snap.docs.map(d => ({ id: d.id, ...d.data() } as Category)));
-        handleInitialLoad();
-      }),
-      onSnapshot(collection(db, 'assignments'), (snap) => {
-        setAssignments(snap.docs.map(d => ({ id: d.id, ...d.data() } as Assignment)));
-        handleInitialLoad();
-      }),
-      onSnapshot(collection(db, 'scores'), (snap) => {
-        setScores(snap.docs.map(d => d.data() as Score));
-        handleInitialLoad();
-      }),
-      onSnapshot(doc(db, 'points', 'gradeAndRankPoints'), (snap) => {
-        setPointsSettings(snap.data() as PointsSettings);
-        handleInitialLoad();
-      }),
-       onSnapshot(doc(db, 'settings', 'global'), (snap) => {
-        setSettings(snap.data() as AppSettings);
-        handleInitialLoad();
-      }),
-      onSnapshot(doc(db, 'standings', 'team_marks'), (snap) => {
-        setPublishedStandings(snap.exists() ? snap.data() as PublishedStandings : null);
-      }),
-    ];
-  
-    return () => unsubscribes.forEach(unsub => unsub && unsub());
-  }, []);
-  
   const enrichedPrograms = useMemo(() => {
     if (programCategories.length === 0) return programs;
     const categoryMap = new Map(programCategories.map(c => [c.id, c.name]));
@@ -334,7 +286,7 @@ export default function PrintoutsPage() {
     setIsDownloading(reportType);
     try {
       const doc = new jsPDF();
-      const primaryColor = [29, 113, 222]; 
+      const primaryColor: [number, number, number] = [29, 113, 222]; 
       const festName = settings?.festName || 'Fest Central';
 
       const addHeaderAndFooter = (doc: jsPDF, title: string, isFirstPage: boolean) => {

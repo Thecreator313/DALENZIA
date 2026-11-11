@@ -1,9 +1,10 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { collection, query, where, getFirestore, onSnapshot, getDocs } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { useState, useEffect, useMemo } from 'react';
+import { collection, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useCachedChunkedIn, useCachedCollection } from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -13,71 +14,70 @@ import { Loader2 } from 'lucide-react';
 import type { Program } from '@/app/admin/programs/page';
 import { motion } from 'framer-motion';
 
-const db = getFirestore(app);
-
 export default function JudgeDashboard() {
   const [judge, setJudge] = useState<JudgeUser | null>(null);
-  const [assignedProgramsCount, setAssignedProgramsCount] = useState(0);
-  const [completedProgramsCount, setCompletedProgramsCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [userChecked, setUserChecked] = useState(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('fest-central-user');
-    if (!storedUser) {
-      setLoading(false);
-      return;
+    if (storedUser) {
+      setJudge(JSON.parse(storedUser));
     }
-
-    const judgeData: JudgeUser = JSON.parse(storedUser);
-    setJudge(judgeData);
-
-    const programsQuery = query(collection(db, 'programs'), where('judges', 'array-contains', judgeData.id));
-
-    const unsubscribePrograms = onSnapshot(programsQuery, async (snapshot) => {
-      const programs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program));
-      setAssignedProgramsCount(programs.length);
-
-      if (programs.length === 0) {
-        setCompletedProgramsCount(0);
-        setLoading(false);
-        return;
-      }
-
-      const programIds = programs.map(p => p.id);
-      const assignmentsQuery = query(collection(db, 'assignments'), where('programId', 'in', programIds));
-      const scoresQuery = query(collection(db, 'scores'), where('judgeId', '==', judgeData.id), where('programId', 'in', programIds));
-
-      const [assignmentsSnapshot, scoresSnapshot] = await Promise.all([
-        getDocs(assignmentsQuery),
-        getDocs(scoresQuery)
-      ]);
-
-      const assignments = assignmentsSnapshot.docs.map(doc => doc.data());
-      const scores = scoresSnapshot.docs.map(doc => doc.data());
-
-      let completedCount = 0;
-      for (const program of programs) {
-        const reportedParticipants = assignments.filter(a => a.programId === program.id && a.status !== 'cancelled' && a.codeLetter);
-        if (reportedParticipants.length === 0) continue;
-
-        const scoresForProgram = scores.filter(s => s.programId === program.id);
-
-        if (scoresForProgram.length >= reportedParticipants.length) {
-          completedCount++;
-        }
-      }
-      setCompletedProgramsCount(completedCount);
-      setLoading(false);
-
-    }, (error) => {
-      console.error("Error fetching data:", error);
-      setLoading(false);
-    });
-
-    return () => {
-      unsubscribePrograms();
-    };
+    setUserChecked(true);
   }, []);
+
+  const { data: programs, loading: programsLoading } = useCachedCollection<Program>(
+    judge ? `query:judge:programs:${judge.id}` : 'query:judge:programs:none',
+    () => query(collection(db, 'programs'), where('judges', 'array-contains', judge!.id)),
+    { enabled: !!judge }
+  );
+
+  const programIds = useMemo(() => programs.map((p) => p.id), [programs]);
+
+  const { data: assignments, loading: assignmentsLoading } = useCachedChunkedIn<{
+    id: string;
+    programId: string;
+    status?: string;
+    codeLetter?: string;
+  }>('judge-assignments', 'assignments', 'programId', programIds, {
+    enabled: !!judge && programIds.length > 0,
+  });
+
+  const { data: scores, loading: scoresLoading } = useCachedCollection<{
+    id: string;
+    programId: string;
+    assignmentId: string;
+    judgeId: string;
+  }>(
+    judge ? `query:judge:scores:${judge.id}` : 'query:judge:scores:none',
+    () => query(collection(db, 'scores'), where('judgeId', '==', judge!.id)),
+    { enabled: !!judge }
+  );
+
+  const assignedProgramsCount = programs.length;
+
+  const completedProgramsCount = useMemo(() => {
+    let completedCount = 0;
+    for (const program of programs) {
+      const reportedParticipants = assignments.filter(
+        (a) => a.programId === program.id && a.status !== 'cancelled' && a.codeLetter
+      );
+      if (reportedParticipants.length === 0) continue;
+
+      const scoresForProgram = scores.filter((s) => s.programId === program.id);
+      if (scoresForProgram.length >= reportedParticipants.length) {
+        completedCount++;
+      }
+    }
+    return completedCount;
+  }, [programs, assignments, scores]);
+
+  const loading =
+    !userChecked ||
+    (!!judge &&
+      (programsLoading ||
+        scoresLoading ||
+        (programIds.length > 0 && assignmentsLoading)));
 
 
   if (loading) {

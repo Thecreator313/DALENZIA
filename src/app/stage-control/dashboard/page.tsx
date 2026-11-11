@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, where, getFirestore, onSnapshot, getDocs } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useCachedCollection } from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -11,42 +12,27 @@ import { motion } from 'framer-motion';
 import type { User } from '@/app/admin/access-central/page';
 import type { Stage } from '@/app/admin/stage-central/page';
 
-const db = getFirestore(app);
-
 export default function StageControlDashboard() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [stage, setStage] = useState<Stage | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [programCount, setProgramCount] = useState(0);
+  const [userChecked, setUserChecked] = useState(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('fest-central-user');
     if (storedUser) {
       setCurrentUser(JSON.parse(storedUser));
-    } else {
-      setLoading(false);
     }
+    setUserChecked(true);
   }, []);
 
-  useEffect(() => {
-    if (!currentUser) return;
+  const { data: stages, loading: stageLoading } = useCachedCollection<Stage>(
+    currentUser ? `query:stage:${currentUser.id}` : 'query:stage:none',
+    () => query(collection(db, 'stages'), where('controllerId', '==', currentUser!.id)),
+    { enabled: !!currentUser }
+  );
 
-    const stagesQuery = query(collection(db, 'stages'), where('controllerId', '==', currentUser.id));
-    const unsubscribeStage = onSnapshot(stagesQuery, (snapshot) => {
-      if (!snapshot.empty) {
-        const stageDoc = snapshot.docs[0];
-        const stageData = { id: stageDoc.id, ...stageDoc.data() } as Stage;
-        setStage(stageData);
-        setProgramCount(stageData.programIds?.length || 0);
-      } else {
-        setStage(null);
-        setProgramCount(0);
-      }
-      setLoading(false);
-    });
-
-    return () => unsubscribeStage();
-  }, [currentUser]);
+  const stage = stages[0] ?? null;
+  const programCount = stage?.programIds?.length || 0;
+  const loading = !userChecked || (!!currentUser && stageLoading);
 
   if (loading) {
     return (

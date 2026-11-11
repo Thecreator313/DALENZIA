@@ -1,19 +1,20 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   collection,
   query,
   where,
-  getFirestore,
-  doc,
-  getDoc,
-  onSnapshot,
-  getDocs,
 } from 'firebase/firestore';
 import Link from 'next/link';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import {
+  useCachedChunkedIn,
+  useCachedCollection,
+  useSharedCollection,
+} from '@/context/firestore-cache';
+import type { Category } from '@/app/admin/categories/page';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Program } from '@/app/admin/programs/page';
@@ -22,8 +23,6 @@ import { Loader2, Users, Edit, Lock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-const db = getFirestore(app);
-
 type ProgramWithStats = Program & {
   totalReportedIncludingCancelled: number;
   activeReportedCount: number;
@@ -31,73 +30,82 @@ type ProgramWithStats = Program & {
 };
 
 export default function JudgingPointPage() {
-  const [assignedPrograms, setAssignedPrograms] = useState<ProgramWithStats[]>([]);
-  const [loading, setLoading] = useState(true);
   const [judge, setJudge] = useState<User | null>(null);
+  const [userChecked, setUserChecked] = useState(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('fest-central-user');
     if (storedUser) {
       const userData = JSON.parse(storedUser);
       setJudge(userData);
-    } else {
-      setLoading(false);
     }
+    setUserChecked(true);
   }, []);
 
-  useEffect(() => {
-    if (!judge) return;
+  const { data: programs, loading: programsLoading } = useCachedCollection<Program>(
+    judge ? `query:judge:programs:${judge.id}` : 'query:judge:programs:none',
+    () => query(collection(db, 'programs'), where('judges', 'array-contains', judge!.id)),
+    { enabled: !!judge }
+  );
 
-    setLoading(true);
-    const programsRef = collection(db, 'programs');
-    const q = query(programsRef, where('judges', 'array-contains', judge.id));
+  const { data: categories, loading: catsLoading } = useSharedCollection<Category>(
+    'programCategories',
+    { enabled: !!judge }
+  );
 
-    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-      const programsListPromises = querySnapshot.docs.map(async (programDoc) => {
-        const programData = programDoc.data();
-        const programId = programDoc.id;
+  const programIds = useMemo(() => programs.map((p) => p.id), [programs]);
 
-        let categoryName = 'Unknown';
-        if (programData.categoryId) {
-            try {
-                const catDoc = await getDoc(doc(db, 'programCategories', programData.categoryId));
-                if (catDoc.exists()) {
-                    categoryName = catDoc.data().name;
-                }
-            } catch (e) { console.error("Error fetching category", e) }
-        }
+  const { data: assignments, loading: assignmentsLoading } = useCachedChunkedIn<{
+    id: string;
+    programId: string;
+    codeLetter?: string;
+    status?: string;
+  }>('judge-assignments', 'assignments', 'programId', programIds, {
+    enabled: !!judge && programIds.length > 0,
+  });
 
-        const assignmentsQuery = query(collection(db, 'assignments'), where('programId', '==', programId));
-        const assignmentsSnapshot = await getDocs(assignmentsQuery);
-        
-        const allReportedAssignments = assignmentsSnapshot.docs.filter(doc => doc.data().codeLetter);
-        const totalReportedIncludingCancelled = allReportedAssignments.length;
-        const activeReportedCount = allReportedAssignments.filter(doc => doc.data().status !== 'cancelled').length;
+  const { data: scores, loading: scoresLoading } = useCachedCollection<{
+    id: string;
+    programId: string;
+    judgeId: string;
+  }>(
+    judge ? `query:judge:scores:${judge.id}` : 'query:judge:scores:none',
+    () => query(collection(db, 'scores'), where('judgeId', '==', judge!.id)),
+    { enabled: !!judge }
+  );
 
-        const scoresQuery = query(collection(db, 'scores'), where('programId', '==', programId), where('judgeId', '==', judge.id));
-        const scoresSnapshot = await getDocs(scoresQuery);
-        const scoredByThisJudge = scoresSnapshot.size;
-        
-        return { 
-          id: programDoc.id, 
-          ...programData, 
-          categoryName, 
-          totalReportedIncludingCancelled,
-          activeReportedCount,
-          scoredByThisJudge 
-        } as ProgramWithStats;
-      });
+  const assignedPrograms = useMemo<ProgramWithStats[]>(() => {
+    const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
 
-      const programsList = await Promise.all(programsListPromises);
-      setAssignedPrograms(programsList);
-      setLoading(false);
-    }, (error) => {
-        console.error("Error fetching assigned programs:", error);
-        setLoading(false);
+    return programs.map((programData) => {
+      const categoryName =
+        (programData.categoryId && categoryMap.get(programData.categoryId)) || 'Unknown';
+      const allReportedAssignments = assignments.filter(
+        (a) => a.programId === programData.id && a.codeLetter
+      );
+      const totalReportedIncludingCancelled = allReportedAssignments.length;
+      const activeReportedCount = allReportedAssignments.filter(
+        (a) => a.status !== 'cancelled'
+      ).length;
+      const scoredByThisJudge = scores.filter((s) => s.programId === programData.id).length;
+
+      return {
+        ...programData,
+        categoryName,
+        totalReportedIncludingCancelled,
+        activeReportedCount,
+        scoredByThisJudge,
+      };
     });
+  }, [programs, categories, assignments, scores]);
 
-    return () => unsubscribe();
-  }, [judge]);
+  const loading =
+    !userChecked ||
+    (!!judge &&
+      (programsLoading ||
+        catsLoading ||
+        scoresLoading ||
+        (programIds.length > 0 && assignmentsLoading)));
 
   if (loading) {
      return (

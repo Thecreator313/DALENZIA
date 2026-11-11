@@ -8,19 +8,14 @@ import {
   updateDoc,
   deleteDoc,
   doc,
-  getFirestore,
-  onSnapshot,
-  query,
-  where,
-  getDoc,
   arrayUnion,
   arrayRemove,
-  getDocs,
 } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useSharedCollection } from '@/context/firestore-cache';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -69,6 +64,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import type { User as StageControllerUser } from '@/app/admin/access-central/page';
 import type { Program } from '@/app/admin/programs/page';
+import type { Category } from '@/app/admin/categories/page';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -80,8 +76,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-
-const db = getFirestore(app);
 
 const stageSchema = z.object({
   name: z.string().min(1, 'Stage name is required'),
@@ -120,7 +114,11 @@ export type Stage = z.infer<typeof stageSchema> & {
 };
 
 
-const getProgramStatus = (program: Program, allAssignments: Assignment[], allScores: Score[]) => {
+const getProgramStatus = (
+    program: Program,
+    allAssignments: Assignment[],
+    allScores: Score[]
+): ProgramWithStatus['status'] => {
     const programAssignments = allAssignments.filter(a => a.programId === program.id && a.status !== 'cancelled');
     const reportedAssignments = programAssignments.filter(a => a.codeLetter);
     const reportedAssignmentIds = reportedAssignments.map(a => a.id);
@@ -149,12 +147,12 @@ const getProgramStatus = (program: Program, allAssignments: Assignment[], allSco
 
 
 export default function StageCentralPage() {
-  const [stages, setStages] = useState<Stage[]>([]);
-  const [controllers, setControllers] = useState<StageControllerUser[]>([]);
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [allAssignments, setAllAssignments] = useState<Assignment[]>([]);
-  const [allScores, setAllScores] = useState<Score[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: allUsers, loading: usersLoading } = useSharedCollection<StageControllerUser>('users');
+  const { data: rawPrograms, loading: progsLoading } = useSharedCollection<Program>('programs');
+  const { data: categories, loading: catsLoading } = useSharedCollection<Category>('programCategories');
+  const { data: allAssignments, loading: assignmentsLoading } = useSharedCollection<Assignment>('assignments');
+  const { data: allScores, loading: scoresLoading } = useSharedCollection<Score & { id: string }>('scores');
+  const { data: rawStages, loading: stagesLoading } = useSharedCollection<Stage>('stages');
 
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -164,68 +162,33 @@ export default function StageCentralPage() {
   const [stageToAssign, setStageToAssign] = useState<Stage | null>(null);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
 
+  const controllers = useMemo(
+    () => allUsers.filter((u) => u.role === 'stagecontroller'),
+    [allUsers]
+  );
 
-  useEffect(() => {
-    setLoading(true);
+  const programs = useMemo(() => {
+    const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
+    const userMap = new Map(allUsers.map((u) => [u.id, u]));
+    return rawPrograms.map((p) => ({
+      ...p,
+      categoryName: (p.categoryId && categoryMap.get(p.categoryId)) || 'Unknown',
+      judgesDetails: (p.judges || [])
+        .map((id) => userMap.get(id))
+        .filter(Boolean) as StageControllerUser[],
+    })) as Program[];
+  }, [rawPrograms, categories, allUsers]);
 
-    const usersQuery = query(collection(db, 'users'), where('role', '==', 'stagecontroller'));
-    const unsubscribeControllers = onSnapshot(usersQuery, (snapshot) => {
-        setControllers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StageControllerUser)));
-    });
+  const stages = useMemo(() => {
+    const userMap = new Map(allUsers.map((u) => [u.id, u.name]));
+    return rawStages.map((s) => ({
+      ...s,
+      controllerName: s.controllerId ? userMap.get(s.controllerId) || 'Unknown' : 'Unknown',
+    }));
+  }, [rawStages, allUsers]);
 
-    const programsQuery = collection(db, 'programs');
-    const unsubscribePrograms = onSnapshot(programsQuery, async (snapshot) => {
-        const programListPromises = snapshot.docs.map(async (p) => {
-            const programData = p.data();
-             let categoryName = 'Unknown';
-            if (programData.categoryId) {
-                const catDoc = await getDoc(doc(db, 'programCategories', programData.categoryId));
-                if (catDoc.exists()) categoryName = catDoc.data().name;
-            }
-            let judgesDetails: StageControllerUser[] = [];
-            if (programData.judges && programData.judges.length > 0) {
-                const judgePromises = programData.judges.map((judgeId: string) => getDoc(doc(db, 'users', judgeId)));
-                const judgeDocs = await Promise.all(judgePromises);
-                judgesDetails = judgeDocs.filter(doc => doc.exists()).map(doc => ({ id: doc.id, ...doc.data() } as StageControllerUser));
-            }
-            return { id: p.id, ...programData, categoryName, judgesDetails } as Program;
-        });
-        Promise.all(programListPromises).then(setPrograms);
-    });
-    
-    const unsubscribeAssignments = onSnapshot(collection(db, 'assignments'), (snapshot) => {
-        setAllAssignments(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as Assignment));
-    });
-
-    const unsubscribeScores = onSnapshot(collection(db, 'scores'), (snapshot) => {
-        setAllScores(snapshot.docs.map(d => d.data() as Score));
-    });
-
-    const stagesQuery = collection(db, 'stages');
-    const unsubscribeStages = onSnapshot(stagesQuery, async (snapshot) => {
-        const stageListPromises = snapshot.docs.map(async (stageDoc) => {
-            const stageData = stageDoc.data() as Omit<Stage, 'id'|'programs'>;
-            let controllerName = 'Unknown';
-            if(stageData.controllerId) {
-                const controllerDoc = await getDoc(doc(db, 'users', stageData.controllerId));
-                if(controllerDoc.exists()) controllerName = controllerDoc.data().name;
-            }
-            return { id: stageDoc.id, ...stageData, controllerName } as Stage;
-        });
-        const stageList = await Promise.all(stageListPromises);
-        setStages(stageList);
-        setLoading(false);
-    });
-
-    return () => {
-        unsubscribeControllers();
-        unsubscribePrograms();
-        unsubscribeStages();
-        unsubscribeAssignments();
-        unsubscribeScores();
-    };
-
-  }, []);
+  const loading =
+    usersLoading || progsLoading || catsLoading || assignmentsLoading || scoresLoading || stagesLoading;
   
   const stagesWithProgramDetails = useMemo(() => {
     return stages.map(stage => {

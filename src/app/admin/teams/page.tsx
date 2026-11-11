@@ -1,24 +1,19 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   collection,
   addDoc,
   updateDoc,
   deleteDoc,
   doc,
-  getFirestore,
-  onSnapshot,
-  query,
-  where,
-  getDoc,
-  getDocs,
 } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useSharedCollection } from '@/context/firestore-cache';
 import {
   Table,
   TableHeader,
@@ -74,8 +69,6 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import type { User } from '@/app/admin/access-central/page';
 
-const db = getFirestore(app);
-
 const teamSchema = z.object({
   name: z.string().min(1, 'Team name is required'),
   leaderId: z.string().min(1, 'Team leader is required'),
@@ -85,64 +78,28 @@ const teamSchema = z.object({
 export type Team = z.infer<typeof teamSchema> & { id: string; mark: number, leaderName?: string };
 
 export default function TeamsPage() {
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: rawTeams, loading: teamsLoading } = useSharedCollection<Team>('teams');
+  const { data: allUsers, loading: usersLoading } = useSharedCollection<User>('users');
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    setLoading(true);
-    
-    // Fetch users with role 'team' for the dropdown
-    const usersQuery = query(collection(db, 'users'), where('role', '==', 'team'));
-    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
-      const userList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
-      setUsers(userList);
-    }, (error) => {
-      console.error("Error fetching team users:", error);
-      toast({ title: 'Error', description: 'Failed to fetch team leaders.', variant: 'destructive' });
-    });
+  const users = useMemo(
+    () => allUsers.filter((u) => u.role === 'team'),
+    [allUsers]
+  );
 
-    const teamsCollection = collection(db, 'teams');
-    const unsubscribeTeams = onSnapshot(teamsCollection, async (snapshot) => {
-        const teamListPromises = snapshot.docs.map(async (docRef) => {
-            const teamData = docRef.data();
-            let leaderName = 'Unknown';
-            if (teamData.leaderId) {
-                try {
-                    const userDocSnap = await getDoc(doc(db, "users", teamData.leaderId));
-                    if (userDocSnap.exists()) {
-                        leaderName = userDocSnap.data().name;
-                    }
-                } catch (e) {
-                    console.error("Error fetching leader name: ", e);
-                }
-            }
-            return {
-                id: docRef.id,
-                ...teamData,
-                leaderName
-            } as Team;
-        });
-        const teamList = await Promise.all(teamListPromises);
-        setTeams(teamList);
-        setLoading(false);
-    }, (error) => {
-      console.error("Error fetching teams:", error);
-      toast({ title: 'Error', description: 'Failed to fetch teams.', variant: 'destructive' });
-      setLoading(false);
-    });
+  const teams = useMemo(() => {
+    const userMap = new Map(allUsers.map((u) => [u.id, u.name]));
+    return rawTeams.map((t) => ({
+      ...t,
+      leaderName: t.leaderId ? userMap.get(t.leaderId) || 'Unknown' : 'Unknown',
+    }));
+  }, [rawTeams, allUsers]);
 
-
-    return () => {
-      unsubscribeUsers();
-      unsubscribeTeams();
-    };
-  }, []);
+  const loading = teamsLoading || usersLoading;
 
   const form = useForm<z.infer<typeof teamSchema>>({
     resolver: zodResolver(teamSchema),

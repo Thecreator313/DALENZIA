@@ -1,24 +1,25 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   collection,
   query,
   where,
-  getFirestore,
   doc,
-  getDoc,
-  getDocs,
-  addDoc,
   updateDoc,
-  onSnapshot,
   setDoc,
 } from 'firebase/firestore';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import {
+  useCachedCollection,
+  useCachedDoc,
+  useSharedCollection,
+} from '@/context/firestore-cache';
+import type { Category } from '@/app/admin/categories/page';
 import type { Program } from '@/app/admin/programs/page';
 import type { User } from '@/app/admin/access-central/page';
 import { Card, CardContent } from '@/components/ui/card';
@@ -48,8 +49,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
-
-const db = getFirestore(app);
 
 type Assignment = {
   id: string;
@@ -89,9 +88,7 @@ export default function ProgramJudgingPage() {
   const params = useParams();
   const programId = params.programId as string;
 
-  const [program, setProgram] = useState<Program | null>(null);
   const [judge, setJudge] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Timer state
@@ -100,18 +97,17 @@ export default function ProgramJudgingPage() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isTimeUp, setIsTimeUp] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: { scores: [] },
   });
-  
+
   const { fields, replace } = useFieldArray({
       control: form.control,
       name: "scores",
   });
   const watchedScores = form.watch('scores');
-  const isJudgingClosed = program?.judgingStatus === 'closed';
 
   useEffect(() => {
     const storedUser = localStorage.getItem('fest-central-user');
@@ -122,78 +118,100 @@ export default function ProgramJudgingPage() {
     }
   }, [router]);
 
+  const { data: judgePrograms, loading: judgeProgramsLoading } = useCachedCollection<Program>(
+    judge ? `query:judge:programs:${judge.id}` : 'query:judge:programs:none',
+    () => query(collection(db, 'programs'), where('judges', 'array-contains', judge!.id)),
+    { enabled: !!judge }
+  );
+
+  const foundProgramInCache = useMemo(
+    () => judgePrograms.find((p) => p.id === programId) ?? null,
+    [judgePrograms, programId]
+  );
+
+  const { data: fallbackProgram, loading: fallbackLoading } = useCachedDoc<Omit<Program, 'id'>>(
+    `doc:program:${programId}`,
+    () => doc(db, 'programs', programId),
+    { enabled: !!judge && !judgeProgramsLoading && !foundProgramInCache && !!programId, keepAlive: false }
+  );
+
+  const { data: categories, loading: catsLoading } = useSharedCollection<Category>(
+    'programCategories',
+    { enabled: !!judge }
+  );
+
+  const program = useMemo<Program | null>(() => {
+    const raw =
+      foundProgramInCache ??
+      (fallbackProgram ? ({ ...fallbackProgram, id: programId } as Program) : null);
+    if (!raw) return null;
+    const categoryName =
+      (raw.categoryId && categories.find((c) => c.id === raw.categoryId)?.name) || 'Unknown';
+    return { ...raw, categoryName };
+  }, [foundProgramInCache, fallbackProgram, programId, categories]);
+
+  const isJudgingClosed = program?.judgingStatus === 'closed';
+
+  const { data: rawAssignments, loading: assignmentsLoading } = useCachedCollection<Assignment>(
+    programId ? `query:program:assignments:${programId}` : 'query:program:assignments:none',
+    () => query(collection(db, 'assignments'), where('programId', '==', programId)),
+    { enabled: !!judge && !!programId, keepAlive: false }
+  );
+
+  const { data: allJudgeScores, loading: scoresLoading } = useCachedCollection<{
+    id: string;
+    programId: string;
+    assignmentId: string;
+    judgeId: string;
+    score?: number;
+    review?: string;
+  }>(
+    judge ? `query:judge:scores:${judge.id}` : 'query:judge:scores:none',
+    () => query(collection(db, 'scores'), where('judgeId', '==', judge!.id)),
+    { enabled: !!judge }
+  );
+
+  const { getValues } = form;
+
   useEffect(() => {
-    if (!judge || !programId) return;
+    if (assignmentsLoading || scoresLoading || !judge) return;
 
-    setLoading(true);
-    let unsubscribeAll: (() => void)[] = [];
+    const reportedAssignments = rawAssignments.filter((a) => a.codeLetter);
+    const programScores = allJudgeScores.filter((s) => s.programId === programId);
+    const scoresMap = new Map(programScores.map((s) => [s.assignmentId, s]));
 
-    const fetchAndListen = async () => {
-        try {
-            const programDocRef = doc(db, 'programs', programId);
-            const unsubProgram = onSnapshot(programDocRef, async (programDoc) => {
-              if (programDoc.exists()) {
-                  const programData = programDoc.data() as Omit<Program, 'id'>;
-                  const catDoc = await getDoc(doc(db, 'programCategories', programData.categoryId));
-                  const categoryName = catDoc.exists() ? catDoc.data().name : "Unknown";
-                  setProgram({ ...programData, id: programDoc.id, categoryName });
-              } else {
-                  toast({ title: 'Error', description: 'Program not found.', variant: 'destructive' });
-                  setLoading(false);
-              }
-            });
-            unsubscribeAll.push(unsubProgram);
+    // Preserve unsaved local draft inputs if judge already started typing
+    const currentRows = getValues('scores') || [];
+    const currentByAssignment = new Map(currentRows.map((r) => [r.assignmentId, r]));
 
+    const formScores = [...reportedAssignments]
+      .sort((a, b) => a.codeLetter.localeCompare(b.codeLetter))
+      .map((assignment) => {
+        const existingScore = scoresMap.get(assignment.id);
+        const draft = currentByAssignment.get(assignment.id);
+        const hasDraftScore = draft && draft.score !== null && draft.score !== undefined && !isNaN(draft.score);
+        const hasDraftReview = draft && typeof draft.review === 'string' && draft.review.length > 0;
 
-            const assignmentsQuery = query(collection(db, 'assignments'), where('programId', '==', programId));
-            const assignmentsUnsubscribe = onSnapshot(assignmentsQuery, async (assignmentsSnapshot) => {
-                const assignments = assignmentsSnapshot.docs
-                    .map(d => ({id: d.id, ...d.data()}) as Assignment)
-                    .filter(a => a.codeLetter);
+        return {
+          assignmentId: assignment.id,
+          scoreId: existingScore?.id,
+          codeLetter: assignment.codeLetter,
+          score: existingScore?.score ?? (hasDraftScore ? draft.score : null),
+          review: existingScore?.review ?? (hasDraftReview ? draft.review : ''),
+          status: assignment.status ?? null,
+        };
+      });
 
-                const scoresQuery = query(collection(db, 'scores'), where('programId', '==', programId), where('judgeId', '==', judge.id));
-                const scoresUnsubscribe = onSnapshot(scoresQuery, (scoresSnapshot) => {
-                    const scoresMap = new Map(scoresSnapshot.docs.map(s => [s.data().assignmentId, {id: s.id, ...s.data()}]));
-                    
-                    const formScores = assignments
-                        .sort((a, b) => a.codeLetter.localeCompare(b.codeLetter))
-                        .map(assignment => {
-                            const existingScore = scoresMap.get(assignment.id);
-                            return {
-                                assignmentId: assignment.id,
-                                scoreId: existingScore?.id,
-                                codeLetter: assignment.codeLetter,
-                                score: existingScore?.score ?? null,
-                                review: existingScore?.review ?? '',
-                                status: assignment.status ?? null,
-                            };
-                        });
-                    
-                    replace(formScores);
-                    setLoading(false);
-                });
-                unsubscribeAll.push(scoresUnsubscribe);
+    replace(formScores);
+  }, [rawAssignments, allJudgeScores, assignmentsLoading, scoresLoading, judge, programId, replace, getValues]);
 
-            }, (error) => {
-                console.error("Error fetching assignments:", error);
-                toast({ title: 'Error', description: 'Could not load real-time assignment data.', variant: 'destructive' });
-                setLoading(false);
-            });
-            unsubscribeAll.push(assignmentsUnsubscribe);
-
-        } catch (e) {
-            console.error(e);
-            toast({ title: 'Error', description: 'Failed to load program details.', variant: 'destructive' });
-            setLoading(false);
-        }
-    };
-
-    fetchAndListen();
-
-    return () => {
-        unsubscribeAll.forEach(unsub => unsub());
-    };
-  }, [judge, programId, replace]);
+  const loading =
+    !judge ||
+    judgeProgramsLoading ||
+    (!foundProgramInCache && fallbackLoading) ||
+    catsLoading ||
+    assignmentsLoading ||
+    scoresLoading;
 
   useEffect(() => {
     if (isTimerRunning && timeLeft > 0) {

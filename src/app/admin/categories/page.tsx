@@ -1,20 +1,19 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   collection,
   addDoc,
   updateDoc,
   deleteDoc,
   doc,
-  getFirestore,
-  onSnapshot,
 } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useSharedCollection } from '@/context/firestore-cache';
 import {
   Table,
   TableHeader,
@@ -65,8 +64,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 
 
-const db = getFirestore(app);
-
 const categorySchema = z.object({
   name: z.string().min(1, 'Category name is required'),
   isGeneral: z.boolean().optional().default(false),
@@ -78,8 +75,7 @@ type CategoryType = 'programCategories' | 'memberCategories';
 
 
 const CategoryManager = ({ categoryType }: { categoryType: CategoryType }) => {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: categories, loading } = useSharedCollection<Category>(categoryType);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -87,32 +83,6 @@ const CategoryManager = ({ categoryType }: { categoryType: CategoryType }) => {
 
   const typeLabel = categoryType === 'programCategories' ? 'Program Category' : 'Member Category';
 
-  useEffect(() => {
-    setLoading(true);
-    const catCollection = collection(db, categoryType);
-    const unsubscribe = onSnapshot(
-      catCollection,
-      (snapshot) => {
-        const catList = snapshot.docs.map(
-          (doc) => ({ id: doc.id, ...doc.data() } as Category)
-        );
-        setCategories(catList);
-        setLoading(false);
-      },
-      (error) => {
-        console.error(`Error fetching ${typeLabel}s:`, error);
-        toast({
-          title: 'Error',
-          description: `Failed to fetch ${typeLabel.toLowerCase()}s.`,
-          variant: 'destructive',
-        });
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [categoryType, typeLabel]);
-  
   const form = useForm<z.infer<typeof categorySchema>>({
     resolver: zodResolver(categorySchema),
     defaultValues: { name: '', isGeneral: false },

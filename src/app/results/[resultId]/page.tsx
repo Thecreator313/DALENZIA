@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, getFirestore, onSnapshot, query, where, doc, getDoc } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { collection, onSnapshot, query, where, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -15,8 +15,6 @@ import html2canvas from 'html2canvas';
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
 import { Download, FileImage } from "lucide-react";
 import { useRef } from 'react';
-
-const db = getFirestore(app);
 
 type PublishedResult = {
     id: string;
@@ -93,18 +91,15 @@ export default function PublicResultDetailPage() {
     const [posterSettings, setPosterSettings] = useState<PosterSettings | null>(null);
 
     useEffect(() => {
-        const fetchPosterSettings = async () => {
-            try {
-                const docRef = doc(db, 'settings', 'posterTemplate');
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    setPosterSettings(docSnap.data() as PosterSettings);
-                }
-            } catch (error) {
-                console.error("Error fetching poster settings:", error);
+        const docRef = doc(db, 'settings', 'posterTemplate');
+        const unsubscribe = onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setPosterSettings(docSnap.data() as PosterSettings);
             }
-        };
-        fetchPosterSettings();
+        }, (error) => {
+            console.error("Error listening to poster settings:", error);
+        });
+        return () => unsubscribe();
     }, []);
 
     const handleDownloadPoster = async () => {

@@ -52,7 +52,7 @@ export const ScratchCardComponent = ({
     }
   }, [isClient, setupCanvas]);
 
-  const getBrushPos = (x, y) => {
+  const getBrushPos = (x: number, y: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
@@ -62,7 +62,7 @@ export const ScratchCardComponent = ({
     };
   };
 
-  const scratch = (ctx, x, y) => {
+  const scratch = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
     ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath();
     ctx.arc(x, y, 12, 0, 2 * Math.PI);
@@ -93,7 +93,7 @@ export const ScratchCardComponent = ({
     }
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -106,7 +106,7 @@ export const ScratchCardComponent = ({
     }
   };
 
-  const handleTouchMove = (e) => {
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

@@ -1,17 +1,21 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     collection,
     query,
     where,
-    getFirestore,
-    onSnapshot,
     getDocs,
     doc,
     updateDoc,
+    documentId,
 } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import {
+    useCachedChunkedIn,
+    useCachedCollection,
+    useSharedCollection,
+} from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Users, SlidersHorizontal, PackageOpen, Award, Check, MoreVertical, Edit, Trash, Tv, Search, Ban, RotateCcw, Filter } from 'lucide-react';
@@ -56,8 +60,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const db = getFirestore(app);
 
 type Assignment = {
     id: string;
@@ -105,159 +107,141 @@ const getReportingStatus = (program: ProgramWithDetails) => {
 };
 
 export default function StageControlProgramsPage() {
-    const [programs, setPrograms] = useState<ProgramWithDetails[]>([]);
-    const [programCategories, setProgramCategories] = useState<Category[]>([]);
-    const [loading, setLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [stage, setStage] = useState<Stage | null>(null);
+    const [userChecked, setUserChecked] = useState(false);
 
-    const [selectedProgram, setSelectedProgram] = useState<ProgramWithDetails | null>(null);
+    const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
     const [isReportingModalOpen, setIsReportingModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
 
-
     useEffect(() => {
         const storedUser = localStorage.getItem('fest-central-user');
         if (storedUser) {
             setCurrentUser(JSON.parse(storedUser));
-        } else {
-            setLoading(false);
         }
+        setUserChecked(true);
     }, []);
 
-    useEffect(() => {
-        if (!currentUser) return;
+    const { data: stages, loading: stageLoading } = useCachedCollection<Stage>(
+        currentUser ? `query:stage:${currentUser.id}` : 'query:stage:none',
+        () => query(collection(db, 'stages'), where('controllerId', '==', currentUser!.id)),
+        { enabled: !!currentUser }
+    );
+    const stage = stages[0] ?? null;
 
-        const stagesQuery = query(collection(db, 'stages'), where('controllerId', '==', currentUser.id));
-        const unsubscribeStage = onSnapshot(stagesQuery, (snapshot) => {
-            if (!snapshot.empty) {
-                const stageDoc = snapshot.docs[0];
-                setStage({ id: stageDoc.id, ...stageDoc.data() } as Stage);
-            } else {
-                setStage(null);
-                setLoading(false);
-            }
-        }, (error) => {
-            toast({ title: 'Error', description: 'Could not fetch assigned stage.', variant: 'destructive' });
-            console.error("Error fetching stage: ", error);
-            setLoading(false);
-        });
+    const stageProgramIds = useMemo(
+        () => stage?.programIds || [],
+        [stage?.programIds]
+    );
+    const hasStagePrograms = stageProgramIds.length > 0;
 
-        return () => unsubscribeStage();
-    }, [currentUser]);
+    const { data: programCategories, loading: catsLoading } = useSharedCollection<Category>(
+        'programCategories',
+        { enabled: hasStagePrograms }
+    );
+    const { data: teams, loading: teamsLoading } = useSharedCollection<Team>('teams', {
+        enabled: hasStagePrograms,
+    });
 
+    const { data: rawPrograms, loading: progsLoading } = useCachedChunkedIn<BaseProgram>(
+        'stage-programs',
+        'programs',
+        documentId(),
+        stageProgramIds,
+        { enabled: hasStagePrograms }
+    );
 
-    useEffect(() => {
-        if (!stage) {
-            if (currentUser) { // only set loading to false if we've checked for a stage
-                setLoading(false);
-            }
-            return;
+    const { data: assignments, loading: assignmentsLoading } = useCachedChunkedIn<Assignment>(
+        'stage-assignments',
+        'assignments',
+        'programId',
+        stageProgramIds,
+        { enabled: hasStagePrograms }
+    );
+
+    const assignedStudentIds = useMemo(
+        () => Array.from(new Set(assignments.map((a) => a.studentId).filter(Boolean))),
+        [assignments]
+    );
+
+    const { data: students, loading: studentsLoading } = useCachedChunkedIn<BaseParticipant>(
+        'stage-students',
+        'students',
+        documentId(),
+        assignedStudentIds,
+        { enabled: hasStagePrograms && assignedStudentIds.length > 0 }
+    );
+
+    const programs = useMemo(() => {
+        if (!hasStagePrograms) return [];
+        const categoryMap = new Map(programCategories.map((c) => [c.id, c.name]));
+        const teamMap = new Map(teams.map((t) => [t.id, t.name]));
+        const studentMap = new Map(students.map((s) => [s.id, s]));
+
+        const assignmentsByProgram = new Map<string, Assignment[]>();
+        for (const a of assignments) {
+            const list = assignmentsByProgram.get(a.programId);
+            if (list) list.push(a);
+            else assignmentsByProgram.set(a.programId, [a]);
         }
-        if (!stage.programIds || stage.programIds.length === 0) {
-            setPrograms([]);
-            setLoading(false);
-            return;
-        }
 
-        setLoading(true);
+        return rawPrograms.map((programData) => {
+            const assignmentsForProgram = assignmentsByProgram.get(programData.id) || [];
+            const participantsWithDetails = assignmentsForProgram
+                .map((assignment) => {
+                    const student = studentMap.get(assignment.studentId);
+                    return student
+                        ? {
+                              ...student,
+                              assignmentId: assignment.id,
+                              codeLetter: assignment.codeLetter,
+                              teamName: teamMap.get(assignment.teamId) || 'Unknown Team',
+                              status: assignment.status,
+                          }
+                        : null;
+                })
+                .filter(Boolean) as ParticipantWithAssignment[];
 
-        const categoriesQuery = query(collection(db, 'programCategories'));
-        const unsubscribeCategories = onSnapshot(categoriesQuery, (snapshot) => {
-            setProgramCategories(snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as Category));
+            const assignmentsByTeam = participantsWithDetails.reduce((acc, participant) => {
+                if (!acc[participant.teamId]) acc[participant.teamId] = [];
+                acc[participant.teamId].push(participant);
+                return acc;
+            }, {} as Record<string, ParticipantWithAssignment[]>);
+
+            const programAssignments = Object.entries(assignmentsByTeam).map(
+                ([teamId, teamParticipants]) => ({
+                    teamId,
+                    teamName: teamMap.get(teamId) || 'Unknown Team',
+                    participants: teamParticipants.sort((a, b) => a.chestNumber - b.chestNumber),
+                })
+            );
+
+            return {
+                ...programData,
+                categoryName: categoryMap.get(programData.categoryId) || 'Unknown Category',
+                assignments: programAssignments,
+                allParticipants: participantsWithDetails,
+            } as ProgramWithDetails;
         });
+    }, [hasStagePrograms, rawPrograms, programCategories, teams, students, assignments]);
 
-        const programsQuery = query(collection(db, 'programs'), where('__name__', 'in', stage.programIds));
+    const loading =
+        !userChecked ||
+        (!!currentUser &&
+            (stageLoading ||
+                (hasStagePrograms &&
+                    (catsLoading ||
+                        teamsLoading ||
+                        progsLoading ||
+                        assignmentsLoading ||
+                        (assignedStudentIds.length > 0 && studentsLoading)))));
 
-        const unsubscribePrograms = onSnapshot(programsQuery, async (programSnapshot) => {
-            try {
-                const programIds = programSnapshot.docs.map(doc => doc.id);
-                if (programIds.length === 0) {
-                    setPrograms([]);
-                    setLoading(false);
-                    return;
-                }
-
-                const [
-                    teamsSnapshot,
-                    studentsSnapshot,
-                    assignmentsSnapshot,
-                    categoriesSnapshot
-                ] = await Promise.all([
-                    getDocs(collection(db, 'teams')),
-                    getDocs(collection(db, 'students')),
-                    getDocs(query(collection(db, 'assignments'), where('programId', 'in', programIds))),
-                    getDocs(collection(db, 'programCategories'))
-                ]);
-
-                const teams = teamsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
-                const students = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BaseParticipant));
-                const assignments = assignmentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment));
-                const categories = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
-
-                const categoryMap = new Map(categories.map(c => [c.id, c.name]));
-                const teamMap = new Map(teams.map(t => [t.id, t.name]));
-
-                const programsWithDetails = programSnapshot.docs.map(programDoc => {
-                    const programData = programDoc.data() as BaseProgram;
-                    const programId = programDoc.id;
-
-                    const assignmentsForProgram = assignments.filter(a => a.programId === programId);
-
-                    const participantsWithDetails = assignmentsForProgram.map(assignment => {
-                        const student = students.find(s => s.id === assignment.studentId);
-                        const team = teams.find(t => t.id === assignment.teamId);
-                        return student ? {
-                            ...student,
-                            assignmentId: assignment.id,
-                            codeLetter: assignment.codeLetter,
-                            teamName: team?.name || "Unknown Team",
-                            status: assignment.status,
-                        } : null;
-                    }).filter(Boolean) as ParticipantWithAssignment[];
-
-                    const assignmentsByTeam = participantsWithDetails.reduce((acc, participant) => {
-                        const teamId = participant.teamId;
-                        if (!acc[teamId]) {
-                            acc[teamId] = [];
-                        }
-                        acc[teamId].push(participant);
-                        return acc;
-                    }, {} as Record<string, ParticipantWithAssignment[]>);
-
-                    const programAssignments = Object.entries(assignmentsByTeam).map(([teamId, teamParticipants]) => {
-                        return {
-                            teamId,
-                            teamName: teamMap.get(teamId) || 'Unknown Team',
-                            participants: teamParticipants.sort((a, b) => a.chestNumber - b.chestNumber),
-                        };
-                    });
-
-                    return {
-                        ...programData,
-                        id: programId,
-                        categoryName: categoryMap.get(programData.categoryId) || 'Unknown Category',
-                        assignments: programAssignments,
-                        allParticipants: participantsWithDetails,
-                    } as ProgramWithDetails;
-                });
-
-                setPrograms(programsWithDetails);
-            } catch (error) {
-                console.error("Error fetching program data for reporting:", error);
-                toast({ title: 'Error', description: 'Failed to load program data.', variant: 'destructive' });
-            } finally {
-                setLoading(false);
-            }
-        });
-
-        return () => {
-            unsubscribePrograms();
-            unsubscribeCategories();
-        };
-    }, [stage, currentUser]);
+    const selectedProgram = useMemo(
+        () => (selectedProgramId ? programs.find((p) => p.id === selectedProgramId) ?? null : null),
+        [programs, selectedProgramId]
+    );
 
     const filteredPrograms = useMemo(() => {
         return programs
@@ -267,48 +251,11 @@ export default function StageControlProgramsPage() {
     }, [programs, searchTerm, categoryFilter, statusFilter]);
 
     const openReportingModal = (program: ProgramWithDetails) => {
-        setSelectedProgram(program);
+        setSelectedProgramId(program.id);
         setIsReportingModalOpen(true);
     };
 
-    const onMutation = (programId: string, assignmentId: string, mutation: { newLetter?: string | null; newStatus?: 'cancelled' | null }) => {
-        const updateParticipants = (pList: ParticipantWithAssignment[]) => pList.map(participant => {
-            if (participant.assignmentId === assignmentId) {
-                const updatedParticipant = { ...participant };
-                if (mutation.newLetter !== undefined) {
-                    updatedParticipant.codeLetter = mutation.newLetter === null ? undefined : mutation.newLetter;
-                }
-                if (mutation.newStatus !== undefined) {
-                    updatedParticipant.status = mutation.newStatus === null ? undefined : mutation.newStatus;
-                }
-                return updatedParticipant;
-            }
-            return participant;
-        });
-
-        setPrograms(prevPrograms => prevPrograms.map(p => {
-            if (p.id === programId) {
-                const updatedAllParticipants = updateParticipants(p.allParticipants);
-                const updatedAssignments = p.assignments.map(teamAssignment => ({
-                    ...teamAssignment,
-                    participants: updateParticipants(teamAssignment.participants)
-                }));
-
-                const updatedProgram = {
-                    ...p,
-                    allParticipants: updatedAllParticipants,
-                    assignments: updatedAssignments
-                };
-
-                if (selectedProgram && selectedProgram.id === programId) {
-                    setSelectedProgram(updatedProgram);
-                }
-
-                return updatedProgram;
-            }
-            return p;
-        }));
-    };
+    const onMutation = () => {};
 
     if (loading) {
         return (

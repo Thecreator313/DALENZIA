@@ -1,20 +1,16 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   collection,
-  getFirestore,
-  onSnapshot,
   doc,
-  getDoc,
   getDocs,
   writeBatch,
-  query,
-  where,
 } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useSharedCollection } from '@/context/firestore-cache';
 import type { Program } from '@/app/admin/programs/page';
 import type { Participant } from '@/app/teams/add-participants/page';
 import type { Team } from '@/app/admin/teams/page';
@@ -40,9 +36,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 
-const db = getFirestore(app);
-
 type Assignment = {
+  id: string;
   programId: string;
   studentId: string;
   teamId: string;
@@ -57,99 +52,58 @@ type ProgramWithAssignments = Program & {
 };
 
 export default function ProgramCoordinationPage() {
-  const [programs, setPrograms] = useState<ProgramWithAssignments[]>([]);
-  const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
-  const [allTeams, setAllTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: rawPrograms, loading: progsLoading } = useSharedCollection<Program>('programs');
+  const { data: programCategories, loading: catsLoading } = useSharedCollection<Category>('programCategories');
+  const { data: allTeams, loading: teamsLoading } = useSharedCollection<Team>('teams');
+  const { data: allParticipants, loading: studentsLoading } = useSharedCollection<Participant>('students');
+  const { data: allAssignments, loading: assignmentsLoading } = useSharedCollection<Assignment>('assignments');
+
   const [isUploading, setIsUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [programCategories, setProgramCategories] = useState<Category[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const programs = useMemo(() => {
+    const categoryMap = new Map(programCategories.map((c) => [c.id, c.name]));
+    const teamMap = new Map(allTeams.map((t) => [t.id, t.name]));
+    const studentMap = new Map(allParticipants.map((s) => [s.id, s]));
 
-  useEffect(() => {
-    setLoading(true);
+    const assignmentsByProgram = new Map<string, Assignment[]>();
+    for (const a of allAssignments) {
+      const list = assignmentsByProgram.get(a.programId);
+      if (list) list.push(a);
+      else assignmentsByProgram.set(a.programId, [a]);
+    }
 
-    const unsubscribes: (() => void)[] = [];
+    return rawPrograms.map((programData) => {
+      const assignmentsForProgram = assignmentsByProgram.get(programData.id) || [];
+      const assignmentsByTeam = assignmentsForProgram.reduce((acc, assignment) => {
+        if (!acc[assignment.teamId]) acc[assignment.teamId] = [];
+        acc[assignment.teamId].push(assignment.studentId);
+        return acc;
+      }, {} as Record<string, string[]>);
 
-    const fetchData = async () => {
-        try {
-            const [
-                programsSnapshot,
-                categoriesSnapshot,
-                teamsSnapshot,
-                studentsSnapshot,
-                assignmentsSnapshot
-            ] = await Promise.all([
-                getDocs(collection(db, 'programs')),
-                getDocs(collection(db, 'programCategories')),
-                getDocs(collection(db, 'teams')),
-                getDocs(collection(db, 'students')),
-                getDocs(collection(db, 'assignments')),
-            ]);
+      const programAssignments = Object.entries(assignmentsByTeam).map(([teamId, studentIds]) => {
+        const participants = studentIds
+          .map((studentId) => studentMap.get(studentId))
+          .filter(Boolean) as Participant[];
+        return {
+          teamId,
+          teamName: teamMap.get(teamId) || 'Unknown Team',
+          participants: participants.sort((a, b) => a.chestNumber - b.chestNumber),
+        };
+      });
 
-            const categories = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
-            setProgramCategories(categories);
+      return {
+        ...programData,
+        categoryName: categoryMap.get(programData.categoryId) || 'Unknown Category',
+        assignments: programAssignments,
+      } as ProgramWithAssignments;
+    });
+  }, [rawPrograms, programCategories, allTeams, allParticipants, allAssignments]);
 
-            const teams = teamsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
-            const students = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant));
-            const assignments = assignmentsSnapshot.docs.map(doc => doc.data() as Assignment);
-            
-            setAllTeams(teams);
-            setAllParticipants(students);
-
-            const categoryMap = new Map(categories.map(c => [c.id, c.name]));
-            const teamMap = new Map(teams.map(t => [t.id, t.name]));
-            
-            const programsWithDetails = programsSnapshot.docs.map(programDoc => {
-                const programData = programDoc.data();
-                const programId = programDoc.id;
-
-                const assignmentsForProgram = assignments.filter(a => a.programId === programId);
-                
-                const assignmentsByTeam = assignmentsForProgram.reduce((acc, assignment) => {
-                    const teamId = assignment.teamId;
-                    if (!acc[teamId]) {
-                        acc[teamId] = [];
-                    }
-                    acc[teamId].push(assignment.studentId);
-                    return acc;
-                }, {} as Record<string, string[]>);
-
-                const programAssignments = Object.entries(assignmentsByTeam).map(([teamId, studentIds]) => {
-                    const participants = studentIds.map(studentId => students.find(s => s.id === studentId)).filter(Boolean) as Participant[];
-                    return {
-                        teamId,
-                        teamName: teamMap.get(teamId) || 'Unknown Team',
-                        participants: participants.sort((a, b) => a.chestNumber - b.chestNumber),
-                    };
-                });
-
-
-                return {
-                    id: programId,
-                    ...programData,
-                    categoryName: categoryMap.get(programData.categoryId) || 'Unknown Category',
-                    assignments: programAssignments,
-                } as ProgramWithAssignments;
-            });
-            
-            setPrograms(programsWithDetails);
-
-        } catch (error) {
-            console.error("Error fetching program coordination data:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    fetchData();
-
-    return () => {
-      unsubscribes.forEach(unsub => unsub());
-    };
-  }, []);
+  const loading =
+    progsLoading || catsLoading || teamsLoading || studentsLoading || assignmentsLoading;
 
   const filteredPrograms = useMemo(() => {
     return programs
@@ -204,8 +158,6 @@ export default function ProgramCoordinationPage() {
         
         await batch.commit();
         toast({ title: "Success", description: "Assignments updated successfully from Excel file." });
-        // Trigger a re-fetch or page reload to show new data
-        window.location.reload();
 
       } catch (error) {
         console.error("Error processing Excel file:", error);

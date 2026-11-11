@@ -1,20 +1,17 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import {
   collection,
   query,
   where,
-  getFirestore,
-  onSnapshot,
   getDocs,
-  writeBatch,
-  runTransaction,
   doc,
   updateDoc,
 } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useSharedCollection } from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Users, SlidersHorizontal, PackageOpen, Award, Check, Search, Filter, MoreVertical, Edit, Trash, Ban, RotateCcw } from 'lucide-react';
@@ -70,8 +67,6 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
-const db = getFirestore(app);
-
 type Assignment = {
   id: string;
   programId: string;
@@ -115,109 +110,77 @@ const getReportingStatus = (program: ProgramWithDetails) => {
 };
 
 export default function AdminReportingPage() {
-  const [programs, setPrograms] = useState<ProgramWithDetails[]>([]);
-  const [programCategories, setProgramCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedProgram, setSelectedProgram] = useState<ProgramWithDetails | null>(null);
+  const { data: rawPrograms, loading: progsLoading } = useSharedCollection<Program>('programs');
+  const { data: programCategories, loading: catsLoading } = useSharedCollection<Category>('programCategories');
+  const { data: teams, loading: teamsLoading } = useSharedCollection<Team>('teams');
+  const { data: students, loading: studentsLoading } = useSharedCollection<Participant>('students');
+  const { data: assignments, loading: assignmentsLoading } = useSharedCollection<Assignment>('assignments');
+
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [isReportingModalOpen, setIsReportingModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  useEffect(() => {
-    setLoading(true);
+  const programs = useMemo(() => {
+    const categoryMap = new Map(programCategories.map((c) => [c.id, c.name]));
+    const teamMap = new Map(teams.map((t) => [t.id, t.name]));
+    const studentMap = new Map(students.map((s) => [s.id, s]));
 
-    const programQuery = query(collection(db, 'programs'));
-    const categoriesQuery = query(collection(db, 'programCategories'));
-    
-    const unsubscribeCategories = onSnapshot(categoriesQuery, (snapshot) => {
-        setProgramCategories(snapshot.docs.map(d => ({id: d.id, ...d.data()}) as Category));
+    const assignmentsByProgram = new Map<string, Assignment[]>();
+    for (const a of assignments) {
+      const list = assignmentsByProgram.get(a.programId);
+      if (list) list.push(a);
+      else assignmentsByProgram.set(a.programId, [a]);
+    }
+
+    return rawPrograms.map((programData) => {
+      const programAssignmentsList = assignmentsByProgram.get(programData.id) || [];
+      const participantsWithDetails = programAssignmentsList
+        .map((assignment) => {
+          const student = studentMap.get(assignment.studentId);
+          return student
+            ? {
+                ...student,
+                assignmentId: assignment.id,
+                codeLetter: assignment.codeLetter,
+                teamName: teamMap.get(assignment.teamId) || 'Unknown Team',
+                status: assignment.status,
+              }
+            : null;
+        })
+        .filter(Boolean) as ParticipantWithAssignment[];
+
+      const assignmentsByTeam = participantsWithDetails.reduce((acc, participant) => {
+        if (!acc[participant.teamId]) acc[participant.teamId] = [];
+        acc[participant.teamId].push(participant);
+        return acc;
+      }, {} as Record<string, ParticipantWithAssignment[]>);
+
+      const programAssignments = Object.entries(assignmentsByTeam).map(
+        ([teamId, teamParticipants]) => ({
+          teamId,
+          teamName: teamMap.get(teamId) || 'Unknown Team',
+          participants: teamParticipants.sort((a, b) => a.chestNumber - b.chestNumber),
+        })
+      );
+
+      return {
+        ...programData,
+        categoryName: categoryMap.get(programData.categoryId) || 'Unknown Category',
+        assignments: programAssignments,
+        allParticipants: participantsWithDetails,
+      } as ProgramWithDetails;
     });
+  }, [rawPrograms, programCategories, teams, students, assignments]);
 
-    const unsubscribePrograms = onSnapshot(programQuery, async (programSnapshot) => {
-      try {
-        const [
-          teamsSnapshot,
-          studentsSnapshot,
-          assignmentsSnapshot
-        ] = await Promise.all([
-          getDocs(collection(db, 'teams')),
-          getDocs(collection(db, 'students')),
-          getDocs(collection(db, 'assignments')),
-        ]);
+  const loading =
+    progsLoading || catsLoading || teamsLoading || studentsLoading || assignmentsLoading;
 
-        const teams = teamsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
-        const students = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant));
-        const assignments = assignmentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment));
-        
-        const categoryDocs = await getDocs(collection(db, 'programCategories'));
-        const categories = categoryDocs.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
-
-        const categoryMap = new Map(categories.map(c => [c.id, c.name]));
-        const teamMap = new Map(teams.map(t => [t.id, t.name]));
-
-        const programsWithDetails = programSnapshot.docs.map(programDoc => {
-          const programData = programDoc.data();
-          const programId = programDoc.id;
-
-          const assignmentsForProgram = assignments.filter(a => a.programId === programId);
-
-          const participantsWithDetails = assignmentsForProgram.map(assignment => {
-            const student = students.find(s => s.id === assignment.studentId);
-            const team = teams.find(t => t.id === assignment.teamId);
-            return student ? {
-              ...student,
-              assignmentId: assignment.id,
-              codeLetter: assignment.codeLetter,
-              teamName: team?.name || "Unknown Team",
-              status: assignment.status,
-            } : null;
-          }).filter(Boolean) as ParticipantWithAssignment[];
-
-          const assignmentsByTeam = participantsWithDetails.reduce((acc, participant) => {
-            const teamId = participant.teamId;
-            if (!acc[teamId]) {
-              acc[teamId] = [];
-            }
-            acc[teamId].push(participant);
-            return acc;
-          }, {} as Record<string, ParticipantWithAssignment[]>);
-
-          const programAssignments = Object.entries(assignmentsByTeam).map(([teamId, teamParticipants]) => {
-            return {
-              teamId,
-              teamName: teamMap.get(teamId) || 'Unknown Team',
-              participants: teamParticipants.sort((a, b) => a.chestNumber - b.chestNumber),
-            };
-          });
-
-          return {
-            id: programId,
-            ...programData,
-            categoryName: categoryMap.get(programData.categoryId) || 'Unknown Category',
-            assignments: programAssignments,
-            allParticipants: participantsWithDetails,
-          } as ProgramWithDetails;
-        });
-
-        setPrograms(programsWithDetails);
-      } catch (error) {
-        console.error("Error fetching program data for reporting:", error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load program data.',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    });
-
-    return () => {
-        unsubscribePrograms();
-        unsubscribeCategories();
-    };
-  }, []);
+  const selectedProgram = useMemo(
+    () => (selectedProgramId ? programs.find((p) => p.id === selectedProgramId) ?? null : null),
+    [programs, selectedProgramId]
+  );
 
   const filteredPrograms = useMemo(() => {
     return programs
@@ -228,48 +191,11 @@ export default function AdminReportingPage() {
 
 
   const openReportingModal = (program: ProgramWithDetails) => {
-    setSelectedProgram(program);
+    setSelectedProgramId(program.id);
     setIsReportingModalOpen(true);
   };
   
-  const onMutation = (programId: string, assignmentId: string, mutation: { newLetter?: string | null; newStatus?: 'cancelled' | null }) => {
-    const updateParticipants = (pList: ParticipantWithAssignment[]) => pList.map(participant => {
-        if (participant.assignmentId === assignmentId) {
-            const updatedParticipant = { ...participant };
-             if (mutation.newLetter !== undefined) {
-              updatedParticipant.codeLetter = mutation.newLetter === null ? undefined : mutation.newLetter;
-            }
-            if (mutation.newStatus !== undefined) {
-               updatedParticipant.status = mutation.newStatus === null ? undefined : mutation.newStatus;
-            }
-            return updatedParticipant;
-        }
-        return participant;
-    });
-
-    setPrograms(prevPrograms => prevPrograms.map(p => {
-         if (p.id === programId) {
-            const updatedAllParticipants = updateParticipants(p.allParticipants);
-            const updatedAssignments = p.assignments.map(teamAssignment => ({
-              ...teamAssignment,
-              participants: updateParticipants(teamAssignment.participants)
-            }));
-
-            const updatedProgram = { 
-                ...p, 
-                allParticipants: updatedAllParticipants, 
-                assignments: updatedAssignments 
-            };
-            
-            if(selectedProgram && selectedProgram.id === programId) {
-                setSelectedProgram(updatedProgram);
-            }
-
-            return updatedProgram;
-        }
-        return p;
-    }));
-  };
+  const onMutation = () => {};
 
   if (loading) {
     return (

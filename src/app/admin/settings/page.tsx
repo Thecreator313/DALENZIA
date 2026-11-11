@@ -2,8 +2,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, getFirestore, setDoc, onSnapshot } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAppSettings } from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -12,32 +13,21 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { Loader2, Save } from 'lucide-react';
 
-const db = getFirestore(app);
-
 export interface AppSettings {
   allowTeamAssignment: boolean;
   festName: string;
 }
 
 export default function SettingsPage() {
+  const { settings: liveSettings, loading } = useAppSettings();
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const settingsDocRef = doc(db, 'settings', 'global');
-    const unsubscribe = onSnapshot(settingsDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setSettings(docSnap.data() as AppSettings);
-      } else {
-        // Initialize with default settings if document doesn't exist
-        setSettings({ allowTeamAssignment: true, festName: 'Fest Central' });
-      }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
+    if (!loading) {
+      setSettings(liveSettings);
+    }
+  }, [liveSettings, loading]);
 
   const handleSettingsChange = (key: keyof AppSettings, value: any) => {
     if (settings) {

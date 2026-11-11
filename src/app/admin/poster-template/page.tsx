@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { doc, getDoc, setDoc, getFirestore } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useCachedDoc } from '@/context/firestore-cache';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +15,6 @@ import { useToast } from "@/hooks/use-toast";
 import { HexColorPicker } from "react-colorful";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-const db = getFirestore(app);
 const IMGBB_API_KEY = 'feb010b50bb6cec41cb64ca52cf9c848';
 
 type TextStyle = {
@@ -56,8 +56,11 @@ const defaultSettings: PosterSettings = {
 };
 
 export default function PosterTemplatePage() {
+  const { data: livePosterSettings, loading } = useCachedDoc<PosterSettings>(
+    'doc:settings:posterTemplate',
+    () => doc(db, 'settings', 'posterTemplate')
+  );
   const [settings, setSettings] = useState<PosterSettings>(defaultSettings);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState('background');
@@ -65,27 +68,10 @@ export default function PosterTemplatePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    try {
-      const docRef = doc(db, 'settings', 'posterTemplate');
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setSettings(docSnap.data() as PosterSettings);
-      }
-    } catch (error) {
-      console.error("Error fetching settings:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load poster settings.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+    if (livePosterSettings) {
+      setSettings(livePosterSettings);
     }
-  };
+  }, [livePosterSettings]);
 
   const handleSave = async () => {
     setSaving(true);

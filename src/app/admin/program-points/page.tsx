@@ -1,18 +1,16 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  collection,
   doc,
-  getFirestore,
-  onSnapshot,
   setDoc,
 } from 'firebase/firestore';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useCachedDoc, useSharedCollection } from '@/context/firestore-cache';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,8 +25,6 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { Loader2, Save } from 'lucide-react';
 import type { Program } from '@/app/admin/programs/page';
-
-const db = getFirestore(app);
 
 const gradeSchema = z.object({
   'A+': z.coerce.number().min(0, 'Must be 0 or more'),
@@ -60,8 +56,12 @@ type PointsData = Omit<FormData, 'specialPrograms'> & { specialGradePoints: Reco
 export default function ProgramPointsPage() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [allPrograms, setAllPrograms] = useState<Program[] | null>(null);
-  const [pointsData, setPointsData] = useState<PointsData | null | undefined>(undefined);
+
+  const { data: allPrograms, loading: programsLoading } = useSharedCollection<Program>('programs');
+  const { data: pointsData, loading: pointsLoading } = useCachedDoc<PointsData>(
+    'doc:points:gradeAndRankPoints',
+    () => doc(db, 'points', 'gradeAndRankPoints')
+  );
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -78,28 +78,7 @@ export default function ProgramPointsPage() {
   });
 
   useEffect(() => {
-    const programsUnsubscribe = onSnapshot(collection(db, 'programs'), (snapshot) => {
-        const programsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program));
-        setAllPrograms(programsData);
-    });
-
-    const pointsDocRef = doc(db, 'points', 'gradeAndRankPoints');
-    const pointsUnsubscribe = onSnapshot(pointsDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-            setPointsData(docSnap.data() as PointsData);
-        } else {
-            setPointsData(null); 
-        }
-    });
-
-    return () => {
-      programsUnsubscribe();
-      pointsUnsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-      if (allPrograms !== null && pointsData !== undefined) {
+      if (!programsLoading && !pointsLoading) {
         const specialMarkPrograms = allPrograms.filter(p => p.markType === 'special-mark');
         
         const specialProgramValues = specialMarkPrograms.map(p => {

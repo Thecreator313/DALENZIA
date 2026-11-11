@@ -1,25 +1,22 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   collection,
   query,
   where,
-  getFirestore,
   doc,
-  getDoc,
   getDocs,
   runTransaction,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
   orderBy,
+  limit,
 } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useCachedDoc, useSharedCollection } from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -30,6 +27,7 @@ import type { Program as BaseProgram } from '@/app/admin/programs/page';
 import type { Participant as BaseParticipant } from '@/app/teams/add-participants/page';
 import type { Team } from '@/app/admin/teams/page';
 import type { User as JudgeUser } from '@/app/admin/access-central/page';
+import type { Category } from '@/app/admin/categories/page';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -43,8 +41,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-
-const db = getFirestore(app);
 
 // Data types
 type Program = BaseProgram & { categoryName?: string; isPublished?: boolean };
@@ -89,82 +85,68 @@ export default function ProgramResultPage() {
   const params = useParams();
   const programId = params.programId as string;
 
-  // Raw data states
-  const [program, setProgram] = useState<Program | null>(null);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [scores, setScores] = useState<Score[]>([]);
-  const [students, setStudents] = useState<BaseParticipant[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [judges, setJudges] = useState<JudgeUser[]>([]);
-  const [pointsSettings, setPointsSettings] = useState<PointsSettings | null>(null);
-  const [programData, setProgramData] = useState<BaseProgram | null>(null);
+  const { data: allPrograms, loading: progsLoading } = useSharedCollection<BaseProgram>('programs');
+  const { data: categories, loading: catsLoading } = useSharedCollection<Category>('programCategories');
+  const { data: allAssignments, loading: assignmentsLoading } = useSharedCollection<Assignment>('assignments');
+  const { data: allScores, loading: scoresLoading } = useSharedCollection<Score & { id: string }>('scores');
+  const { data: students, loading: studentsLoading } = useSharedCollection<BaseParticipant>('students');
+  const { data: teams, loading: teamsLoading } = useSharedCollection<Team>('teams');
+  const { data: allUsers, loading: usersLoading } = useSharedCollection<JudgeUser>('users');
+  const { data: pointsSettings, loading: pointsLoading } = useCachedDoc<PointsSettings>(
+    'doc:points:gradeAndRankPoints',
+    () => doc(db, 'points', 'gradeAndRankPoints')
+  );
 
   // UI states
-  const [loading, setLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isUnpublishing, setIsUnpublishing] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertType, setAlertType] = useState<'publish' | 'unpublish' | null>(null);
 
+  const judges = useMemo(
+    () => allUsers.filter((u) => u.role === 'judges'),
+    [allUsers]
+  );
 
-  useEffect(() => {
-    if (!programId) {
-      toast({ title: "Error", description: "Program ID is missing.", variant: "destructive" });
-      setLoading(false);
-      return;
-    }
+  const programData = useMemo(
+    () => allPrograms.find((p) => p.id === programId) ?? null,
+    [allPrograms, programId]
+  );
 
-    const unsubscribes: (() => void)[] = [];
-    
-    // Fetch static data once
-    Promise.all([
-      getDocs(collection(db, 'students')),
-      getDocs(collection(db, 'teams')),
-      getDocs(query(collection(db, 'users'), where('role', '==', 'judges'))),
-      getDoc(doc(db, 'points', 'gradeAndRankPoints')),
-    ]).then(([studentsSnap, teamsSnap, judgesSnap, pointsDoc]) => {
-      setStudents(studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as BaseParticipant));
-      setTeams(teamsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Team));
-      setJudges(judgesSnap.docs.map(d => ({ id: d.id, ...d.data() }) as JudgeUser));
-      setPointsSettings(pointsDoc.data() as PointsSettings);
-    }).catch(error => {
-      console.error("Error fetching static data:", error);
-      toast({ title: "Error", description: "Failed to load essential data.", variant: "destructive"});
-    });
+  const program = useMemo<Program | null>(() => {
+    if (!programData) return null;
+    const categoryName =
+      categories.find((c) => c.id === programData.categoryId)?.name || 'Unknown';
+    return {
+      ...programData,
+      categoryName,
+      isPublished: programData.isPublished || false,
+    };
+  }, [programData, categories]);
 
-    const programDocRef = doc(db, 'programs', programId);
-    unsubscribes.push(onSnapshot(programDocRef, async (programDoc) => {
-        if (!programDoc.exists()) {
-            toast({ title: "Error", description: "Program not found.", variant: "destructive" });
-            setProgram(null);
-            setLoading(false);
-            return;
-        }
-        const progData = { id: programDoc.id, ...programDoc.data() } as BaseProgram;
-        setProgramData(progData);
-        const categoryDoc = await getDoc(doc(db, 'programCategories', progData.categoryId));
-        setProgram({ ...progData, categoryName: categoryDoc.data()?.name || 'Unknown', isPublished: progData.isPublished || false });
-    }));
+  const assignments = useMemo(
+    () => allAssignments.filter((a) => a.programId === programId),
+    [allAssignments, programId]
+  );
 
-    const assignmentsQuery = query(collection(db, 'assignments'), where('programId', '==', programId));
-    unsubscribes.push(onSnapshot(assignmentsQuery, (snap) => {
-        setAssignments(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Assignment));
-    }));
+  const scores = useMemo(
+    () => allScores.filter((s) => s.programId === programId),
+    [allScores, programId]
+  );
 
-    const scoresQuery = query(collection(db, 'scores'), where('programId', '==', programId));
-    unsubscribes.push(onSnapshot(scoresQuery, (snap) => {
-      setScores(snap.docs.map(d => d.data() as Score));
-      // This is a good place to turn off loading, assuming other data is loaded
-      if (program) setLoading(false);
-    }));
-
-    return () => unsubscribes.forEach(unsub => unsub());
-  }, [programId, program]);
+  const loading =
+    progsLoading ||
+    catsLoading ||
+    assignmentsLoading ||
+    scoresLoading ||
+    studentsLoading ||
+    teamsLoading ||
+    usersLoading ||
+    pointsLoading;
 
   const results = useMemo(() => {
     if (!programData || !pointsSettings || teams.length === 0 || students.length === 0) {
-      setLoading(false);
       return [];
     }
 
@@ -226,7 +208,6 @@ export default function ProgramResultPage() {
         finalResults.push({ ...res, rank: currentRank, points: totalPoints });
     });
     
-    setLoading(false);
     return finalResults;
   }, [programId, programData, pointsSettings, assignments, scores, students, teams, judges]);
 
@@ -271,8 +252,8 @@ export default function ProgramResultPage() {
     if (!program) return;
 
     try {
-        // Find the next available result number
-        const publishedResultsQuery = query(collection(db, 'publishedResults'), orderBy('resultNumber', 'desc'));
+        // Find the next available result number (only fetch the highest 1 document)
+        const publishedResultsQuery = query(collection(db, 'publishedResults'), orderBy('resultNumber', 'desc'), limit(1));
         const publishedResultsSnap = await getDocs(publishedResultsQuery);
         let nextResultNumber = 1;
         if (!publishedResultsSnap.empty) {

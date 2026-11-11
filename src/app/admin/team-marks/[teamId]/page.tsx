@@ -1,18 +1,10 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import {
-  collection,
-  getFirestore,
-  onSnapshot,
-  getDocs,
-  doc,
-  query,
-  where,
-  getDoc
-} from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { useMemo } from 'react';
+import { doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useCachedDoc, useSharedCollection } from '@/context/firestore-cache';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -25,8 +17,6 @@ import type { Participant as BaseParticipant } from '@/app/teams/add-participant
 import type { Team } from '@/app/admin/teams/page';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-
-const db = getFirestore(app);
 
 // Data types
 type Assignment = { id: string; programId: string; studentId: string; teamId: string; status?: 'cancelled' };
@@ -60,131 +50,121 @@ export default function TeamMarkDetailPage() {
   const params = useParams();
   const teamId = params.teamId as string;
 
-  const [team, setTeam] = useState<Team | null>(null);
-  const [participantResults, setParticipantResults] = useState<ParticipantWithPoints[]>([]);
-  const [teamTotalPoints, setTeamTotalPoints] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const { data: teams, loading: teamsLoading } = useSharedCollection<Team>('teams');
+  const { data: allPrograms, loading: progsLoading } = useSharedCollection<Program>('programs');
+  const { data: allParticipants, loading: studentsLoading } = useSharedCollection<BaseParticipant>('students');
+  const { data: allAssignments, loading: assignmentsLoading } = useSharedCollection<Assignment>('assignments');
+  const { data: allScores, loading: scoresLoading } = useSharedCollection<Score & { id: string }>('scores');
+  const { data: pointsDoc, loading: pointsLoading } = useCachedDoc<PointsSettings>(
+    'doc:points:gradeAndRankPoints',
+    () => doc(db, 'points', 'gradeAndRankPoints')
+  );
 
-  useEffect(() => {
-    if (!teamId) return;
+  const loading =
+    teamsLoading || progsLoading || studentsLoading || assignmentsLoading || scoresLoading || pointsLoading;
 
-    const calculateTeamDetails = async () => {
-      setLoading(true);
-      try {
-        const teamDoc = await getDoc(doc(db, 'teams', teamId));
-        if (!teamDoc.exists()) throw new Error("Team not found");
-        setTeam({id: teamDoc.id, ...teamDoc.data()} as Team);
+  const team = useMemo(
+    () => teams.find((t) => t.id === teamId) ?? null,
+    [teams, teamId]
+  );
 
-        // Fetch all data required for calculations globally, not just for one team
-        const [
-          programsSnap,
-          allParticipantsSnap,
-          allAssignmentsSnap,
-          allScoresSnap,
-          pointsSnap,
-        ] = await Promise.all([
-          getDocs(collection(db, 'programs')),
-          getDocs(collection(db, 'students')),
-          getDocs(collection(db, 'assignments')),
-          getDocs(collection(db, 'scores')),
-          getDoc(doc(db, 'points', 'gradeAndRankPoints')),
-        ]);
-        
-        const allPrograms = programsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Program);
-        const publishedPrograms = allPrograms.filter(p => p.isPublished);
-        const publishedProgramIds = new Set(publishedPrograms.map(p => p.id));
+  const { participantResults, teamTotalPoints } = useMemo(() => {
+    if (loading || !team) return { participantResults: [], teamTotalPoints: 0 };
 
-        const teamParticipants = allParticipantsSnap.docs
-            .filter(doc => doc.data().teamId === teamId)
-            .map(d => ({ id: d.id, ...d.data() }) as BaseParticipant);
-
-        const allAssignments = allAssignmentsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Assignment);
-        const allScores = allScoresSnap.docs.map(d => d.data() as Score);
-        
-        const pointsSettings: PointsSettings = (pointsSnap.data() as PointsSettings) || {
-          normalGradePoints: {}, specialGradePoints: {}, rankPoints: {},
-        };
-
-        // Pre-calculate scores and ranks for every published program
-        const programScoresCache: Record<string, { assignmentId: string, averageScore: number }[]> = {};
-        for (const program of publishedPrograms) {
-          const programAssignments = allAssignments.filter(a => a.programId === program.id && a.status !== 'cancelled');
-          const scoresList = programAssignments.map(pa => {
-              const assignmentScores = allScores.filter(s => s.assignmentId === pa.id);
-              if (assignmentScores.length === 0) return null;
-              const totalScore = assignmentScores.reduce((sum, s) => sum + s.score, 0);
-              return { assignmentId: pa.id, averageScore: totalScore / assignmentScores.length };
-          }).filter(Boolean) as { assignmentId: string, averageScore: number }[];
-          
-          scoresList.sort((a,b) => b.averageScore - a.averageScore);
-          programScoresCache[program.id] = scoresList;
-        }
-
-        const results = teamParticipants.map(participant => {
-            let participantTotalPoints = 0;
-            const programResults: ParticipantWithPoints['programResults'] = [];
-            
-            // Get assignments only for the current participant
-            const participantAssignments = allAssignments.filter(a => a.studentId === participant.id && a.status !== 'cancelled' && publishedProgramIds.has(a.programId));
-            
-            for (const assignment of participantAssignments) {
-                const program = publishedPrograms.find(p => p.id === assignment.programId);
-                if (!program) continue;
-
-                const scoresForProgram = programScoresCache[program.id];
-                if (!scoresForProgram) continue;
-
-                const participantScoreData = scoresForProgram.find(s => s.assignmentId === assignment.id);
-                
-                if (participantScoreData) {
-                    const { averageScore } = participantScoreData;
-                    const grade = getGrade(averageScore);
-                    
-                    const gradePoints = program.markType === 'special-mark'
-                        ? pointsSettings.specialGradePoints?.[program.id]?.[grade] || 0
-                        : pointsSettings.normalGradePoints?.[grade] || 0;
-                    
-                    // Determine rank based on the pre-calculated sorted list
-                    let rank = 0;
-                    let lastScore = -1;
-                    for (let i = 0; i < scoresForProgram.length; i++) {
-                        if(scoresForProgram[i].averageScore !== lastScore) {
-                            rank = i + 1;
-                            lastScore = scoresForProgram[i].averageScore;
-                        }
-                        if (scoresForProgram[i].assignmentId === assignment.id) {
-                            break;
-                        }
-                    }
-                    
-                    let rankPoints = 0;
-                    if (rank === 1) rankPoints = pointsSettings.rankPoints?.first || 0;
-                    else if (rank === 2) rankPoints = pointsSettings.rankPoints?.second || 0;
-                    else if (rank === 3) rankPoints = pointsSettings.rankPoints?.third || 0;
-                    
-                    const totalProgramPoints = gradePoints + rankPoints;
-                    participantTotalPoints += totalProgramPoints;
-                    programResults.push({ programName: program.name, averageScore, grade, points: totalProgramPoints });
-                }
-            }
-            return { ...participant, totalPoints: participantTotalPoints, programResults };
-        });
-
-        results.sort((a,b) => b.totalPoints - a.totalPoints);
-        setParticipantResults(results);
-        setTeamTotalPoints(results.reduce((sum, r) => sum + r.totalPoints, 0));
-
-      } catch (error) {
-        console.error("Error calculating team details:", error);
-        toast({ title: "Error", description: "Could not load team details.", variant: "destructive" });
-      } finally {
-        setLoading(false);
-      }
+    const publishedPrograms = allPrograms.filter((p) => p.isPublished);
+    const publishedProgramIds = new Set(publishedPrograms.map((p) => p.id));
+    const teamParticipants = allParticipants.filter((p) => p.teamId === teamId);
+    const pointsSettings: PointsSettings = pointsDoc || {
+      normalGradePoints: {},
+      specialGradePoints: {},
+      rankPoints: {},
     };
-    
-    calculateTeamDetails();
-    
-  }, [teamId]);
+
+    const programScoresCache: Record<string, { assignmentId: string; averageScore: number }[]> = {};
+    for (const program of publishedPrograms) {
+      const programAssignments = allAssignments.filter(
+        (a) => a.programId === program.id && a.status !== 'cancelled'
+      );
+      const scoresList = programAssignments
+        .map((pa) => {
+          const assignmentScores = allScores.filter((s) => s.assignmentId === pa.id);
+          if (assignmentScores.length === 0) return null;
+          const totalScore = assignmentScores.reduce((sum, s) => sum + s.score, 0);
+          return { assignmentId: pa.id, averageScore: totalScore / assignmentScores.length };
+        })
+        .filter(Boolean) as { assignmentId: string; averageScore: number }[];
+
+      scoresList.sort((a, b) => b.averageScore - a.averageScore);
+      programScoresCache[program.id] = scoresList;
+    }
+
+    const results = teamParticipants.map((participant) => {
+      let participantTotalPoints = 0;
+      const programResults: ParticipantWithPoints['programResults'] = [];
+
+      const participantAssignments = allAssignments.filter(
+        (a) =>
+          a.studentId === participant.id &&
+          a.status !== 'cancelled' &&
+          publishedProgramIds.has(a.programId)
+      );
+
+      for (const assignment of participantAssignments) {
+        const program = publishedPrograms.find((p) => p.id === assignment.programId);
+        if (!program) continue;
+
+        const scoresForProgram = programScoresCache[program.id];
+        if (!scoresForProgram) continue;
+
+        const participantScoreData = scoresForProgram.find(
+          (s) => s.assignmentId === assignment.id
+        );
+
+        if (participantScoreData) {
+          const { averageScore } = participantScoreData;
+          const grade = getGrade(averageScore);
+
+          const gradePoints =
+            program.markType === 'special-mark'
+              ? pointsSettings.specialGradePoints?.[program.id]?.[grade] || 0
+              : pointsSettings.normalGradePoints?.[grade] || 0;
+
+          let rank = 0;
+          let lastScore = -1;
+          for (let i = 0; i < scoresForProgram.length; i++) {
+            if (scoresForProgram[i].averageScore !== lastScore) {
+              rank = i + 1;
+              lastScore = scoresForProgram[i].averageScore;
+            }
+            if (scoresForProgram[i].assignmentId === assignment.id) {
+              break;
+            }
+          }
+
+          let rankPoints = 0;
+          if (rank === 1) rankPoints = pointsSettings.rankPoints?.first || 0;
+          else if (rank === 2) rankPoints = pointsSettings.rankPoints?.second || 0;
+          else if (rank === 3) rankPoints = pointsSettings.rankPoints?.third || 0;
+
+          const totalProgramPoints = gradePoints + rankPoints;
+          participantTotalPoints += totalProgramPoints;
+          programResults.push({
+            programName: program.name,
+            averageScore,
+            grade,
+            points: totalProgramPoints,
+          });
+        }
+      }
+      return { ...participant, totalPoints: participantTotalPoints, programResults };
+    });
+
+    results.sort((a, b) => b.totalPoints - a.totalPoints);
+    return {
+      participantResults: results,
+      teamTotalPoints: results.reduce((sum, r) => sum + r.totalPoints, 0),
+    };
+  }, [loading, team, teamId, allPrograms, allParticipants, allAssignments, allScores, pointsDoc]);
 
 
   if (loading) {

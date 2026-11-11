@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -28,8 +28,6 @@ import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { Trophy, Loader2 } from 'lucide-react';
 import type { User } from '@/app/admin/access-central/page';
-
-const db = getFirestore(app);
 
 const loginSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),

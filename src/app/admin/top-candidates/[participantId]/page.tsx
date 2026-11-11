@@ -1,17 +1,10 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import {
-  collection,
-  getFirestore,
-  getDocs,
-  doc,
-  query,
-  where,
-  getDoc
-} from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { useState, useMemo } from 'react';
+import { doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useCachedDoc, useSharedCollection } from '@/context/firestore-cache';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -24,8 +17,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Category } from '@/app/admin/categories/page';
-
-const db = getFirestore(app);
+import type { Team } from '@/app/admin/teams/page';
 
 type Program = BaseProgram & { isGeneral?: boolean };
 type Assignment = { id: string; programId: string; studentId: string; teamId: string; status?: 'cancelled' };
@@ -84,67 +76,59 @@ export default function ParticipantReportPage() {
   const params = useParams();
   const participantId = params.participantId as string;
 
-  const [details, setDetails] = useState<ParticipantDetails | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [rawData, setRawData] = useState<RawData | null>(null);
   const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
-  
-  // Fetch all data once on mount
-  useEffect(() => {
-    if (!participantId) return;
 
-    const fetchAllData = async () => {
-      setLoading(true);
-      try {
-        const participantDoc = await getDoc(doc(db, 'students', participantId));
-        if (!participantDoc.exists()) throw new Error("Participant not found");
-        const participant = {id: participantDoc.id, ...participantDoc.data()} as BaseParticipant;
-        
-        const teamDoc = await getDoc(doc(db, 'teams', participant.teamId));
-        const teamName = teamDoc.exists() ? teamDoc.data().name : "Unknown Team";
+  const { data: students, loading: studentsLoading } = useSharedCollection<BaseParticipant>('students');
+  const { data: teams, loading: teamsLoading } = useSharedCollection<Team>('teams');
+  const { data: rawPrograms, loading: progsLoading } = useSharedCollection<Program>('programs');
+  const { data: assignments, loading: assignmentsLoading } = useSharedCollection<Assignment>('assignments');
+  const { data: scores, loading: scoresLoading } = useSharedCollection<Score & { id: string }>('scores');
+  const { data: programCategories, loading: catsLoading } = useSharedCollection<Category>('programCategories');
+  const { data: pointsSettings, loading: pointsLoading } = useCachedDoc<PointsSettings>(
+    'doc:points:gradeAndRankPoints',
+    () => doc(db, 'points', 'gradeAndRankPoints')
+  );
 
-        setDetails({
-            participantId: participant.id,
-            name: participant.name,
-            chestNumber: participant.chestNumber,
-            teamName,
-        });
+  const loading =
+    studentsLoading ||
+    teamsLoading ||
+    progsLoading ||
+    assignmentsLoading ||
+    scoresLoading ||
+    catsLoading ||
+    pointsLoading;
 
-        const [
-          programsSnap,
-          assignmentsSnap,
-          scoresSnap,
-          pointsSnap,
-          progCatsSnap,
-        ] = await Promise.all([
-          getDocs(collection(db, 'programs')),
-          getDocs(query(collection(db, 'assignments'))),
-          getDocs(collection(db, 'scores')),
-          getDoc(doc(db, 'points', 'gradeAndRankPoints')),
-          getDocs(collection(db, 'programCategories')),
-        ]);
-        
-        const programCategories = progCatsSnap.docs.map(c => ({ id: c.id, ...c.data() } as Category));
-        const programs = programsSnap.docs.map(d => ({ id: d.id, ...d.data(), isGeneral: programCategories.find(c => c.id === d.data().categoryId)?.isGeneral } as Program));
-        const assignments = assignmentsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Assignment);
-        const scores = scoresSnap.docs.map(d => d.data() as Score);
-        const pointsSettings: PointsSettings = pointsSnap.data() as PointsSettings || {
-          normalGradePoints: {}, specialGradePoints: {}, rankPoints: {},
-        };
-
-        setRawData({ programs, assignments, scores, pointsSettings, programCategories });
-
-      } catch (error) {
-        console.error("Error calculating participant report:", error);
-        toast({ title: "Error", description: "Could not load participant report.", variant: "destructive" });
-      } finally {
-        setLoading(false);
-      }
+  const details = useMemo<ParticipantDetails | null>(() => {
+    const participant = students.find((s) => s.id === participantId);
+    if (!participant) return null;
+    const teamName = teams.find((t) => t.id === participant.teamId)?.name || 'Unknown Team';
+    return {
+      participantId: participant.id,
+      name: participant.name,
+      chestNumber: participant.chestNumber,
+      teamName,
     };
-    
-    fetchAllData();
-    
-  }, [participantId]);
+  }, [students, teams, participantId]);
+
+  const rawData = useMemo<RawData | null>(() => {
+    if (loading) return null;
+    const generalCatSet = new Set(programCategories.filter((c) => c.isGeneral).map((c) => c.id));
+    const programs = rawPrograms.map((p) => ({
+      ...p,
+      isGeneral: generalCatSet.has(p.categoryId),
+    }));
+    return {
+      programs,
+      assignments,
+      scores,
+      pointsSettings: pointsSettings || {
+        normalGradePoints: {},
+        specialGradePoints: {},
+        rankPoints: {},
+      },
+      programCategories,
+    };
+  }, [loading, rawPrograms, assignments, scores, pointsSettings, programCategories]);
 
   // Perform calculations based on raw data and filters
   const { programResults, totalPoints } = useMemo(() => {

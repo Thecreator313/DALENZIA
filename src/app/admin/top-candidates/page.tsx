@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { collection, getFirestore, getDoc, getDocs, doc } from 'firebase/firestore';
+import { useState, useMemo } from 'react';
+import { doc } from 'firebase/firestore';
 import Link from 'next/link';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useCachedDoc, useSharedCollection } from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -19,8 +20,6 @@ import type { Team } from '@/app/admin/teams/page';
 import type { Category } from '@/app/admin/categories/page';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const db = getFirestore(app);
 
 // Data types
 type Participant = BaseParticipant & { categoryName: string };
@@ -61,7 +60,6 @@ const getGrade = (score: number) => {
 };
 
 export default function TopCandidatesPage() {
-  const [loading, setLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
 
   // Filters
@@ -70,62 +68,27 @@ export default function TopCandidatesPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
 
-  // Raw Data from Firestore
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [scores, setScores] = useState<Score[]>([]);
-  const [pointsSettings, setPointsSettings] = useState<PointsSettings | null>(null);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [memberCategories, setMemberCategories] = useState<Category[]>([]);
-  const [programCategories, setProgramCategories] = useState<Category[]>([]);
+  const { data: programs, loading: progsLoading } = useSharedCollection<Program>('programs');
+  const { data: participants, loading: studentsLoading } = useSharedCollection<Participant>('students');
+  const { data: assignments, loading: assignmentsLoading } = useSharedCollection<Assignment>('assignments');
+  const { data: scores, loading: scoresLoading } = useSharedCollection<Score & { id: string }>('scores');
+  const { data: pointsSettings, loading: pointsLoading } = useCachedDoc<PointsSettings>(
+    'doc:points:gradeAndRankPoints',
+    () => doc(db, 'points', 'gradeAndRankPoints')
+  );
+  const { data: teams, loading: teamsLoading } = useSharedCollection<Team>('teams');
+  const { data: memberCategories, loading: memCatsLoading } = useSharedCollection<Category>('memberCategories');
+  const { data: programCategories, loading: progCatsLoading } = useSharedCollection<Category>('programCategories');
 
-
-  useEffect(() => {
-    setLoading(true);
-
-    // One-time fetch for all data
-    const fetchAllData = async () => {
-      try {
-        const [
-          programsSnap,
-          participantsSnap,
-          assignmentsSnap,
-          scoresSnap,
-          pointsSnap,
-          teamsSnap,
-          memberCategoriesSnap,
-          programCategoriesSnap,
-        ] = await Promise.all([
-          getDocs(collection(db, 'programs')),
-          getDocs(collection(db, 'students')),
-          getDocs(collection(db, 'assignments')),
-          getDocs(collection(db, 'scores')),
-          getDoc(doc(db, 'points', 'gradeAndRankPoints')),
-          getDocs(collection(db, 'teams')),
-          getDocs(collection(db, 'memberCategories')),
-          getDocs(collection(db, 'programCategories')),
-        ]);
-
-        setPrograms(programsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Program)));
-        setParticipants(participantsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant)));
-        setAssignments(assignmentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Assignment)));
-        setScores(scoresSnap.docs.map(doc => doc.data() as Score));
-        setPointsSettings(pointsSnap.data() as PointsSettings);
-        setTeams(teamsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team)));
-        setMemberCategories(memberCategoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category)));
-        setProgramCategories(programCategoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category)));
-      } catch (error) {
-        console.error("Error fetching data for top candidates:", error);
-        toast({ title: 'Error', description: 'Failed to load necessary data.', variant: 'destructive' });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAllData();
-
-  }, []);
+  const loading =
+    progsLoading ||
+    studentsLoading ||
+    assignmentsLoading ||
+    scoresLoading ||
+    pointsLoading ||
+    teamsLoading ||
+    memCatsLoading ||
+    progCatsLoading;
 
   const results = useMemo(() => {
     if (!pointsSettings || loading) return [];

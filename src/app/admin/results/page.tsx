@@ -1,18 +1,14 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
-  collection,
-  query,
-  getFirestore,
-  onSnapshot,
-  getDocs,
   doc,
   updateDoc,
 } from 'firebase/firestore';
 import Link from 'next/link';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useSharedCollection } from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import type { Category } from '@/app/admin/categories/page';
 import { Button } from '@/components/ui/button';
@@ -43,8 +39,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const db = getFirestore(app);
 
 type Program = BaseProgram & {
   categoryName?: string;
@@ -143,59 +137,37 @@ const StatCard = ({ title, value, icon: Icon, color, delay }: { title: string, v
 );
 
 export default function ResultsPage() {
-  const [programsWithStatus, setProgramsWithStatus] = useState<ProgramWithStatus[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: categories, loading: catsLoading } = useSharedCollection<Category>('programCategories');
+  const { data: rawPrograms, loading: progsLoading } = useSharedCollection<Program>('programs');
+  const { data: assignments, loading: assignmentsLoading } = useSharedCollection<{
+    id: string;
+    programId: string;
+    status?: string;
+    codeLetter?: string;
+  }>('assignments');
+  const { data: scores, loading: scoresLoading } = useSharedCollection<{
+    id: string;
+    assignmentId: string;
+  }>('scores');
+
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [programToUpdate, setProgramToUpdate] = useState<Program | null>(null);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
 
-
-  useEffect(() => {
-    setLoading(true);
-
-    let activePrograms: Program[] = [];
-    let activeAssignments: any[] = [];
-    let activeScores: any[] = [];
-    let categoryMap = new Map<string, string>();
-
-    const processData = () => {
-      if (activePrograms.length === 0 && !loading) return;
-      const programsStatus = activePrograms.map((program): ProgramWithStatus => {
-        const status = getProgramStatus(program, activeAssignments, activeScores);
-        return { ...program, status };
-      });
-      setProgramsWithStatus(programsStatus);
-      if (loading) setLoading(false);
-    };
-
-    const catUnsubscribe = onSnapshot(collection(db, 'programCategories'), (categoriesSnapshot) => {
-      categoryMap = new Map(categoriesSnapshot.docs.map(d => [d.id, d.data().name]));
-      activePrograms = activePrograms.map(p => ({ ...p, categoryName: categoryMap.get(p.categoryId) || 'Unknown' }));
-      processData();
+  const programsWithStatus = useMemo(() => {
+    const categoryMap = new Map(categories.map((d) => [d.id, d.name]));
+    return rawPrograms.map((programData): ProgramWithStatus => {
+      const program = {
+        ...programData,
+        categoryName: categoryMap.get(programData.categoryId) || 'Unknown Category',
+      };
+      const status = getProgramStatus(program, assignments, scores);
+      return { ...program, status };
     });
+  }, [rawPrograms, categories, assignments, scores]);
 
-    const unsubAll = onSnapshot(query(collection(db, 'programs')), (snapshot) => {
-      Promise.all([
-        getDocs(collection(db, 'assignments')),
-        getDocs(collection(db, 'scores'))
-      ]).then(([assignmentsSnapshot, scoresSnapshot]) => {
-        activePrograms = snapshot.docs.map(programDoc => {
-          const program = { id: programDoc.id, ...programDoc.data() } as Program;
-          program.categoryName = categoryMap.get(program.categoryId) || 'Unknown Category';
-          return program;
-        });
-        activeAssignments = assignmentsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        activeScores = scoresSnapshot.docs.map(d => d.data());
-        processData();
-      });
-    });
-
-    return () => {
-      catUnsubscribe();
-      unsubAll();
-    };
-  }, []);
+  const loading = catsLoading || progsLoading || assignmentsLoading || scoresLoading;
 
   const filteredPrograms = useMemo(() => {
     return programsWithStatus
@@ -216,8 +188,6 @@ export default function ResultsPage() {
     try {
       const programDocRef = doc(db, 'programs', programToUpdate.id);
       await updateDoc(programDocRef, { judgingStatus: newStatus });
-
-      setProgramsWithStatus(prev => prev.map(p => p.id === programToUpdate.id ? { ...p, judgingStatus: newStatus } : p));
 
       toast({
         title: 'Success',

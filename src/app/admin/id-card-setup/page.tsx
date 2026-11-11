@@ -1,19 +1,12 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import {
-  collection,
-  getFirestore,
-  onSnapshot,
-  doc,
-  getDoc,
-} from 'firebase/firestore';
+import { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
-import { app } from '@/lib/firebase';
+import { useAppSettings, useSharedCollection } from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,59 +17,28 @@ import type { Team } from '@/app/admin/teams/page';
 import type { Category } from '@/app/admin/categories/page';
 import type { AppSettings } from '@/app/admin/settings/page';
 
-const db = getFirestore(app);
-
 type Assignment = { id: string; programId: string; studentId: string; teamId: string; };
 
 export default function IdCardSetupPage() {
-  const [loading, setLoading] = useState(true);
   const [isDownloadingXLSX, setIsDownloadingXLSX] = useState(false);
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [isDownloadingQRCodes, setIsDownloadingQRCodes] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState('all');
 
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [participants, setParticipants] = useState<BaseParticipant[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [memberCategories, setMemberCategories] = useState<Category[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [settings, setSettings] = useState<AppSettings | null>(null);
-  
-  useEffect(() => {
-    setLoading(true);
-    const collectionsToFetch = [
-      { name: 'programs', setter: setPrograms },
-      { name: 'students', setter: setParticipants },
-      { name: 'teams', setter: setTeams },
-      { name: 'memberCategories', setter: setMemberCategories },
-      { name: 'assignments', setter: setAssignments },
-    ];
-    
-    let loadedCount = 0;
-    const totalCollections = collectionsToFetch.length + 1; // +1 for settings
+  const { data: programs, loading: progsLoading } = useSharedCollection<Program>('programs');
+  const { data: participants, loading: studentsLoading } = useSharedCollection<BaseParticipant>('students');
+  const { data: teams, loading: teamsLoading } = useSharedCollection<Team>('teams');
+  const { data: memberCategories, loading: catsLoading } = useSharedCollection<Category>('memberCategories');
+  const { data: assignments, loading: assignmentsLoading } = useSharedCollection<Assignment>('assignments');
+  const { settings, loading: settingsLoading } = useAppSettings();
 
-    const unsubscribes = collectionsToFetch.map(({ name, setter }) => {
-        return onSnapshot(collection(db, name), (snapshot) => {
-            setter(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
-            loadedCount++;
-            if (loadedCount === totalCollections) setLoading(false);
-        }, (error) => {
-            console.error(`Error fetching ${name}:`, error);
-            loadedCount++;
-            if (loadedCount === totalCollections) setLoading(false);
-        });
-    });
-
-    const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (snap) => {
-      setSettings(snap.data() as AppSettings);
-      loadedCount++;
-      if (loadedCount === totalCollections) setLoading(false);
-    });
-    unsubscribes.push(unsubSettings);
-
-
-    return () => unsubscribes.forEach(unsub => unsub());
-  }, []);
+  const loading =
+    progsLoading ||
+    studentsLoading ||
+    teamsLoading ||
+    catsLoading ||
+    assignmentsLoading ||
+    settingsLoading;
 
   const getFilteredParticipants = () => {
      return selectedTeam === 'all' 

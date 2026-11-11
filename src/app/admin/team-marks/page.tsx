@@ -1,16 +1,13 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
-  collection,
-  getFirestore,
-  onSnapshot,
-  getDocs,
   doc,
   setDoc,
 } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useCachedDoc, useSharedCollection } from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -32,8 +29,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const db = getFirestore(app);
 
 // Data types
 type Team = BaseTeam & { leaderName?: string };
@@ -67,160 +62,135 @@ const getGrade = (score: number) => {
 };
 
 export default function TeamMarksPage() {
-  const [teamResults, setTeamResults] = useState<TeamResult[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: allPrograms, loading: progsLoading } = useSharedCollection<Program>('programs');
+  const { data: participants, loading: studentsLoading } = useSharedCollection<BaseParticipant>('students');
+  const { data: assignments, loading: assignmentsLoading } = useSharedCollection<Assignment>('assignments');
+  const { data: scores, loading: scoresLoading } = useSharedCollection<Score & { id: string }>('scores');
+  const { data: teams, loading: teamsLoading } = useSharedCollection<Team>('teams');
+  const { data: users, loading: usersLoading } = useSharedCollection<{ id: string; name: string }>('users');
+  const { data: pointsDoc, loading: pointsLoading } = useCachedDoc<PointsSettings>(
+    'doc:points:gradeAndRankPoints',
+    () => doc(db, 'points', 'gradeAndRankPoints')
+  );
+  const { data: publishedResults, loading: publishedLoading } = useSharedCollection<{ id: string }>('publishedResults');
+  const { data: lastPublishedStandings } = useCachedDoc<PublishedStandings>(
+    'doc:standings:team_marks',
+    () => doc(db, 'standings', 'team_marks')
+  );
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [publishedResultsCount, setPublishedResultsCount] = useState(0);
-  const [lastPublishedStandings, setLastPublishedStandings] = useState<PublishedStandings | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
 
+  const publishedResultsCount = publishedResults.length;
 
-  useEffect(() => {
-    setLoading(true);
+  const loading =
+    progsLoading ||
+    studentsLoading ||
+    assignmentsLoading ||
+    scoresLoading ||
+    teamsLoading ||
+    usersLoading ||
+    pointsLoading ||
+    publishedLoading;
 
-    const calculateAllTeamPoints = async () => {
-      try {
-        const [
-          programsSnap,
-          participantsSnap,
-          assignmentsSnap,
-          scoresSnap,
-          pointsSnap,
-          teamsSnap,
-          usersSnap,
-        ] = await Promise.all([
-          getDocs(collection(db, 'programs')),
-          getDocs(collection(db, 'students')),
-          getDocs(collection(db, 'assignments')),
-          getDocs(collection(db, 'scores')),
-          getDocs(collection(db, 'points')),
-          getDocs(collection(db, 'teams')),
-          getDocs(collection(db, 'users')),
-        ]);
+  const teamResults = useMemo(() => {
+    if (loading) return [];
 
-        const allPrograms = programsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Program);
-        const publishedPrograms = allPrograms.filter(p => p.isPublished);
-
-        const participants = participantsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as BaseParticipant);
-        const assignments = assignmentsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Assignment);
-        const scores = scoresSnap.docs.map(d => d.data() as Score);
-        const teams = teamsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Team);
-        const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }) as { id: string; name: string });
-
-        const userMap = new Map(users.map(u => [u.id, u.name]));
-
-        const pointsSettingsDoc = pointsSnap.docs.find(d => d.id === 'gradeAndRankPoints');
-        const pointsSettings: PointsSettings = pointsSettingsDoc?.data() as PointsSettings || {
-          normalGradePoints: {}, specialGradePoints: {}, rankPoints: {},
-        };
-
-        const programScores: Record<string, { assignmentId: string, averageScore: number }[]> = {};
-        for (const program of publishedPrograms) {
-          const programAssignments = assignments.filter(a => a.programId === program.id && a.status !== 'cancelled');
-          const programScoresList = [];
-
-          for (const assignment of programAssignments) {
-            const assignmentScores = scores.filter(s => s.assignmentId === assignment.id);
-            if (assignmentScores.length > 0) {
-              const totalScore = assignmentScores.reduce((sum, s) => sum + s.score, 0);
-              const averageScore = totalScore / assignmentScores.length;
-              programScoresList.push({ assignmentId: assignment.id, averageScore });
-            }
-          }
-          programScoresList.sort((a, b) => b.averageScore - a.averageScore);
-          programScores[program.id] = programScoresList;
-        }
-
-        const participantPoints: Record<string, number> = {};
-        for (const participant of participants) {
-          let totalPoints = 0;
-          const participantAssignments = assignments.filter(a => a.studentId === participant.id && a.status !== 'cancelled');
-
-          for (const assignment of participantAssignments) {
-            const program = publishedPrograms.find(p => p.id === assignment.programId);
-            if (!program) continue;
-
-            const scoresForProgram = programScores[program.id];
-            const participantScoreData = scoresForProgram?.find(s => s.assignmentId === assignment.id);
-
-            if (participantScoreData) {
-              const { averageScore } = participantScoreData;
-              const grade = getGrade(averageScore);
-
-              const gradePoints = program.markType === 'special-mark'
-                ? pointsSettings.specialGradePoints?.[program.id]?.[grade] || 0
-                : pointsSettings.normalGradePoints?.[grade] || 0;
-
-              let rank = 0;
-              let lastScore = -1;
-              for (let i = 0; i < scoresForProgram.length; i++) {
-                if (scoresForProgram[i].averageScore !== lastScore) {
-                  rank = i + 1;
-                  lastScore = scoresForProgram[i].averageScore;
-                }
-                if (scoresForProgram[i].assignmentId === assignment.id) {
-                  break;
-                }
-              }
-
-              let rankPoints = 0;
-              if (rank > 0) {
-                if (rank === 1) rankPoints = pointsSettings.rankPoints?.['first'] || 0;
-                else if (rank === 2) rankPoints = pointsSettings.rankPoints?.['second'] || 0;
-                else if (rank === 3) rankPoints = pointsSettings.rankPoints?.['third'] || 0;
-              }
-
-              totalPoints += gradePoints + rankPoints;
-            }
-          }
-          participantPoints[participant.id] = totalPoints;
-        }
-
-        const resultsByTeam = teams.map(team => {
-          let teamTotalPoints = 0;
-          const teamParticipants = participants.filter(p => p.teamId === team.id);
-          teamParticipants.forEach(p => {
-            teamTotalPoints += participantPoints[p.id] || 0;
-          });
-          return {
-            teamId: team.id,
-            teamName: team.name,
-            leaderName: userMap.get(team.leaderId) || 'N/A',
-            totalPoints: teamTotalPoints,
-          };
-        });
-
-        resultsByTeam.sort((a, b) => b.totalPoints - a.totalPoints);
-        setTeamResults(resultsByTeam);
-
-      } catch (error) {
-        console.error("Error calculating team marks:", error);
-        toast({ title: "Error", description: "Could not calculate team marks.", variant: "destructive" });
-      } finally {
-        setLoading(false);
-      }
+    const publishedPrograms = allPrograms.filter((p) => p.isPublished);
+    const userMap = new Map(users.map((u) => [u.id, u.name]));
+    const pointsSettings: PointsSettings = pointsDoc || {
+      normalGradePoints: {},
+      specialGradePoints: {},
+      rankPoints: {},
     };
 
-    calculateAllTeamPoints();
+    const programScores: Record<string, { assignmentId: string; averageScore: number }[]> = {};
+    for (const program of publishedPrograms) {
+      const programAssignments = assignments.filter(
+        (a) => a.programId === program.id && a.status !== 'cancelled'
+      );
+      const programScoresList = [];
 
-    const unsubResults = onSnapshot(collection(db, 'publishedResults'), (snap) => {
-      setPublishedResultsCount(snap.size);
-    });
-
-    const unsubStandings = onSnapshot(doc(db, 'standings', 'team_marks'), (snap) => {
-      if (snap.exists()) {
-        setLastPublishedStandings(snap.data() as PublishedStandings);
-      } else {
-        setLastPublishedStandings(null);
+      for (const assignment of programAssignments) {
+        const assignmentScores = scores.filter((s) => s.assignmentId === assignment.id);
+        if (assignmentScores.length > 0) {
+          const totalScore = assignmentScores.reduce((sum, s) => sum + s.score, 0);
+          const averageScore = totalScore / assignmentScores.length;
+          programScoresList.push({ assignmentId: assignment.id, averageScore });
+        }
       }
+      programScoresList.sort((a, b) => b.averageScore - a.averageScore);
+      programScores[program.id] = programScoresList;
+    }
+
+    const participantPoints: Record<string, number> = {};
+    for (const participant of participants) {
+      let totalPoints = 0;
+      const participantAssignments = assignments.filter(
+        (a) => a.studentId === participant.id && a.status !== 'cancelled'
+      );
+
+      for (const assignment of participantAssignments) {
+        const program = publishedPrograms.find((p) => p.id === assignment.programId);
+        if (!program) continue;
+
+        const scoresForProgram = programScores[program.id];
+        const participantScoreData = scoresForProgram?.find(
+          (s) => s.assignmentId === assignment.id
+        );
+
+        if (participantScoreData) {
+          const { averageScore } = participantScoreData;
+          const grade = getGrade(averageScore);
+
+          const gradePoints =
+            program.markType === 'special-mark'
+              ? pointsSettings.specialGradePoints?.[program.id]?.[grade] || 0
+              : pointsSettings.normalGradePoints?.[grade] || 0;
+
+          let rank = 0;
+          let lastScore = -1;
+          for (let i = 0; i < scoresForProgram.length; i++) {
+            if (scoresForProgram[i].averageScore !== lastScore) {
+              rank = i + 1;
+              lastScore = scoresForProgram[i].averageScore;
+            }
+            if (scoresForProgram[i].assignmentId === assignment.id) {
+              break;
+            }
+          }
+
+          let rankPoints = 0;
+          if (rank > 0) {
+            if (rank === 1) rankPoints = pointsSettings.rankPoints?.['first'] || 0;
+            else if (rank === 2) rankPoints = pointsSettings.rankPoints?.['second'] || 0;
+            else if (rank === 3) rankPoints = pointsSettings.rankPoints?.['third'] || 0;
+          }
+
+          totalPoints += gradePoints + rankPoints;
+        }
+      }
+      participantPoints[participant.id] = totalPoints;
+    }
+
+    const resultsByTeam = teams.map((team) => {
+      let teamTotalPoints = 0;
+      const teamParticipants = participants.filter((p) => p.teamId === team.id);
+      teamParticipants.forEach((p) => {
+        teamTotalPoints += participantPoints[p.id] || 0;
+      });
+      return {
+        teamId: team.id,
+        teamName: team.name,
+        leaderName: userMap.get(team.leaderId) || 'N/A',
+        totalPoints: teamTotalPoints,
+      };
     });
 
-    return () => {
-      unsubResults();
-      unsubStandings();
-    };
-  }, []);
+    resultsByTeam.sort((a, b) => b.totalPoints - a.totalPoints);
+    return resultsByTeam;
+  }, [loading, allPrograms, participants, assignments, scores, teams, users, pointsDoc]);
 
   const handlePublish = async () => {
     setIsPublishing(true);

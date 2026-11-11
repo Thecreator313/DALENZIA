@@ -2,16 +2,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getFirestore } from 'firebase/firestore';
-import { app } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Loader2, User as UserIcon } from 'lucide-react';
 import type { User } from '@/app/admin/access-central/page';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-
-const db = getFirestore(app);
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);

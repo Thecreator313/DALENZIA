@@ -4,14 +4,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   collection,
-  addDoc,
-  getFirestore,
-  onSnapshot,
   query,
   where,
   getDocs,
   doc,
-  getDoc,
   runTransaction,
   updateDoc,
   deleteDoc,
@@ -19,7 +15,8 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { useCachedCollection, useSharedCollection } from '@/context/firestore-cache';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -78,8 +75,6 @@ import {
 } from '@/components/ui/alert-dialog';
 
 
-const db = getFirestore(app);
-
 const participantSchema = z.object({
   name: z.string().min(1, 'Participant name is required'),
   categoryId: z.string().min(1, 'Category is required'),
@@ -95,11 +90,7 @@ export type Participant = z.infer<typeof participantSchema> & {
 
 
 export default function AddParticipantsPage() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [team, setTeam] = useState<Team | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
@@ -117,41 +108,27 @@ export default function AddParticipantsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!currentUser) return;
-    setLoading(true);
+  const { data: userTeams, loading: teamLoading } = useCachedCollection<Team>(
+    currentUser ? `query:team:${currentUser.id}` : 'query:team:none',
+    () => query(collection(db, 'teams'), where('leaderId', '==', currentUser!.id)),
+    { enabled: !!currentUser }
+  );
+  const team = userTeams[0] ?? null;
 
-    const q = query(collection(db, 'teams'), where('leaderId', '==', currentUser.id));
-    const unsubscribeTeam = onSnapshot(q, (querySnapshot) => {
-        if (!querySnapshot.empty) {
-            const teamDoc = querySnapshot.docs[0];
-            const teamData = { id: teamDoc.id, ...teamDoc.data() } as Team;
-            setTeam(teamData);
+  const { data: rawParticipants, loading: studentsLoading } = useCachedCollection<Participant>(
+    team ? `query:students:${team.id}` : 'query:students:none',
+    () => query(collection(db, 'students'), where('teamId', '==', team!.id)),
+    { enabled: !!team }
+  );
 
-            // Now fetch participants for this team
-            const participantsQuery = query(collection(db, 'students'), where('teamId', '==', teamData.id));
-            const unsubscribeParticipants = onSnapshot(participantsQuery, (snapshot) => {
-                const participantList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Participant));
-                setParticipants(participantList.sort((a,b) => a.chestNumber - b.chestNumber));
-            });
-            
-            return () => unsubscribeParticipants();
-        }
-        setLoading(false);
-    });
-    
-    const categoriesCollection = collection(db, 'memberCategories');
-    const unsubscribeCategories = onSnapshot(categoriesCollection, (snapshot) => {
-      const catList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
-      setCategories(catList);
-      setLoading(false);
-    });
+  const { data: categories, loading: catsLoading } = useSharedCollection<Category>('memberCategories');
 
-    return () => {
-        unsubscribeTeam();
-        unsubscribeCategories();
-    };
-  }, [currentUser]);
+  const participants = useMemo(
+    () => [...rawParticipants].sort((a, b) => a.chestNumber - b.chestNumber),
+    [rawParticipants]
+  );
+
+  const loading = teamLoading || (!!team && studentsLoading) || catsLoading;
 
   const form = useForm<z.infer<typeof participantSchema>>({
     resolver: zodResolver(participantSchema),
