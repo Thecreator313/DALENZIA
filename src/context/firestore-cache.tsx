@@ -178,8 +178,10 @@ class FirestoreCacheStore {
       entry.listeners.forEach((l) => l());
     };
 
+    let emittedSync = false;
     entry.unsub = startSubscription(
       (data, exists) => {
+        emittedSync = true;
         entry.snapshot = {
           data,
           loading: false,
@@ -189,6 +191,7 @@ class FirestoreCacheStore {
         notify();
       },
       (error) => {
+        emittedSync = true;
         entry.snapshot = {
           ...entry.snapshot,
           loading: false,
@@ -198,7 +201,9 @@ class FirestoreCacheStore {
       }
     );
 
-    notify();
+    if (!emittedSync && entry.listeners.size > 0) {
+      notify();
+    }
   };
 
   release = (key: string) => {
@@ -386,15 +391,18 @@ export function useCachedChunkedIn<T extends { id: string }>(
   ids: string[],
   options: UseCachedOptions = {}
 ): CacheSnapshot<T[]> {
-  const { enabled = true, keepAlive = false } = options;
+  const { enabled = true, keepAlive = true } = options;
   const store = useFirestoreCacheStore();
+  const fieldRef = useRef(field);
+  fieldRef.current = field;
 
+  const fieldKey = typeof field === 'string' ? field : '__fieldpath__';
   const idsKey = Array.from(new Set(ids.filter(Boolean))).sort().join('\u0000');
   const stableIds = useMemo(
     () => (idsKey ? idsKey.split('\u0000') : (EMPTY_ARRAY as string[])),
     [idsKey]
   );
-  const activeKey = enabled ? `${keyPrefix}:${idsKey}` : null;
+  const activeKey = enabled ? `${keyPrefix}:${fieldKey}:${idsKey}` : null;
 
   const fallback = (
     enabled && stableIds.length > 0
@@ -416,14 +424,14 @@ export function useCachedChunkedIn<T extends { id: string }>(
     store.retain<T[]>(activeKey, EMPTY_ARRAY as T[], keepAlive, (onUpdate, onError) => {
       return subscribeChunkedInQuery<T>(
         collectionName,
-        field,
+        fieldRef.current,
         stableIds,
         (items) => onUpdate(items),
         (err) => onError(err)
       );
     });
     return () => store.release(activeKey);
-  }, [store, activeKey, collectionName, field, stableIds, keepAlive]);
+  }, [store, activeKey, collectionName, stableIds, keepAlive]);
 
   return useSyncExternalStore(subscribe, getSnapshot, () => fallback);
 }

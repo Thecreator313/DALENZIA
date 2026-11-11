@@ -5,7 +5,7 @@ import gsap from 'gsap';
 import { collection, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useCachedCollection, useSharedCollection } from '@/context/firestore-cache';
-import { TeamOrbitCanvas } from '@/components/team-orbit-canvas';
+import { MascotOrbitShowcase } from '@/components/fest-mascot';
 import { AnimatedCounter } from '@/components/animated-counter';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -294,20 +294,15 @@ export default function TeamDashboard() {
             </div>
           </div>
 
-          {/* Interactive 3D Three.js Crest */}
-          <div className="relative h-60 sm:h-72 lg:h-80 w-full rounded-2xl border border-border/40 bg-gradient-to-b from-primary/5 via-transparent to-indigo-500/5 overflow-hidden">
-            <TeamOrbitCanvas variant="dashboard" pulseKey={`${stats.participants}-${stats.fullyAssigned}`} />
-            <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-background/75 backdrop-blur-md border border-border/50 px-2.5 py-1">
-                <Users className="h-3 w-3 text-sky-500" />
-                {stats.participants} Members
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-background/75 backdrop-blur-md border border-border/50 px-2.5 py-1">
-                <Sparkles className="h-3 w-3 text-indigo-500" />
-                {completionPct}% Ready
-              </span>
-            </div>
-          </div>
+          {/* Interactive Animated Mascot & 3D Team Crest */}
+          <MascotOrbitShowcase
+            orbitVariant="dashboard"
+            badgeText={team.name}
+            pulseKey={`${stats.participants}-${stats.fullyAssigned}`}
+            footerLeftText={`${stats.participants} Members`}
+            footerRightText={`${completionPct}% Ready`}
+            frameTone="adaptive"
+          />
         </div>
       </section>
 

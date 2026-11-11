@@ -45,7 +45,7 @@ import {
 } from 'lucide-react';
 import type { Program } from '@/app/admin/programs/page';
 import type { Category } from '@/app/admin/categories/page';
-import { TeamOrbitCanvas } from '@/components/team-orbit-canvas';
+import { MascotOrbitShowcase } from '@/components/fest-mascot';
 import { AnimatedCounter } from '@/components/animated-counter';
 import { cn } from '@/lib/utils';
 
@@ -65,8 +65,6 @@ type PublishedStandings = {
   }[];
   publishedAtResultCount: number;
 };
-
-type OrbitMode = 'admin' | 'festival' | 'assignments';
 
 const QUICK_ACTIONS = [
   {
@@ -140,7 +138,6 @@ export default function AdminDashboard() {
   const [countsLoading, setCountsLoading] = useState(true);
   const [togglingAssignments, setTogglingAssignments] = useState(false);
 
-  const [orbitMode, setOrbitMode] = useState<OrbitMode>('admin');
   const [programSearch, setProgramSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
@@ -528,54 +525,15 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Interactive Three.js Sculpture with Switchable Palette Modes */}
-          <div className="relative flex h-64 w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] sm:h-72 lg:h-[320px]">
-            <div className="relative z-10 flex items-center justify-between gap-2 px-3.5 pt-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/70 px-2.5 py-1 text-[11px] font-medium text-slate-200 backdrop-blur-md">
-                <Sparkles className="h-3 w-3 text-amber-300" />
-                3D Command Core
-              </span>
-              <div className="inline-flex rounded-full border border-white/15 bg-slate-950/75 p-0.5 backdrop-blur-md">
-                {(
-                  [
-                    { id: 'admin', label: 'Core' },
-                    { id: 'festival', label: 'Crown' },
-                    { id: 'assignments', label: 'Orbit' },
-                  ] as const
-                ).map((mode) => (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    onClick={() => setOrbitMode(mode.id)}
-                    className={cn(
-                      'rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all',
-                      orbitMode === mode.id
-                        ? 'bg-white text-slate-950 shadow-sm'
-                        : 'text-slate-300 hover:text-white'
-                    )}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1">
-              <TeamOrbitCanvas
-                variant={orbitMode}
-                pulseKey={`${orbitMode}-${stats.publishedResults}-${programBreakdown.total}`}
-              />
-            </div>
-
-            <div className="pointer-events-none flex items-center justify-between gap-2 px-3.5 pb-3 text-[11px]">
-              <span className="rounded-full border border-white/15 bg-slate-950/75 px-2.5 py-1 text-slate-300 backdrop-blur-md">
-                Click sculpture to pulse
-              </span>
-              <span className="rounded-full border border-indigo-400/30 bg-slate-950/75 px-2.5 py-1 font-mono text-indigo-200 backdrop-blur-md">
-                {stats.participants} Contestants
-              </span>
-            </div>
-          </div>
+          {/* Interactive Animated Mascot & 3D Command Core Showcase */}
+          <MascotOrbitShowcase
+            orbitVariant="admin"
+            badgeText={settings.festName || 'Fest Mascot'}
+            pulseKey={`${stats.publishedResults}-${programBreakdown.total}`}
+            footerLeftText="Click sculpture to pulse"
+            footerRightText={`${stats.participants} Contestants`}
+            frameTone="dark"
+          />
         </div>
       </section>
 

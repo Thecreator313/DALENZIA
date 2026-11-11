@@ -7,31 +7,40 @@ import gsap from 'gsap';
  * Smoothly animates numeric values using GSAP while respecting reduced-motion preferences.
  */
 export function AnimatedCounter({ value }: { value: number }) {
-  const [displayValue, setDisplayValue] = useState(value);
-  const trackerRef = useRef({ val: value });
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const [displayValue, setDisplayValue] = useState(safeValue);
+  const trackerRef = useRef({ val: safeValue });
 
   useEffect(() => {
+    if (trackerRef.current.val === safeValue) {
+      setDisplayValue((prev) => (prev === safeValue ? prev : safeValue));
+      return;
+    }
+
     const prefersReducedMotion =
       typeof window !== 'undefined' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     if (prefersReducedMotion) {
-      trackerRef.current.val = value;
-      setDisplayValue(value);
+      trackerRef.current.val = safeValue;
+      setDisplayValue((prev) => (prev === safeValue ? prev : safeValue));
       return;
     }
 
     const tween = gsap.to(trackerRef.current, {
-      val: value,
+      val: safeValue,
       duration: 0.75,
       ease: 'power3.out',
-      onUpdate: () => setDisplayValue(Math.round(trackerRef.current.val)),
+      onUpdate: () => {
+        const next = Math.round(trackerRef.current.val);
+        setDisplayValue((prev) => (prev === next ? prev : next));
+      },
     });
 
     return () => {
       tween.kill();
     };
-  }, [value]);
+  }, [safeValue]);
 
   return <span>{displayValue}</span>;
 }

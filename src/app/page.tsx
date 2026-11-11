@@ -30,7 +30,7 @@ import { useRouter } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCountUp } from '@/hooks/use-count-up';
 import { Input } from '@/components/ui/input';
-import { TeamOrbitCanvas } from '@/components/team-orbit-canvas';
+import { MascotOrbitShowcase } from '@/components/fest-mascot';
 import { AnimatedCounter } from '@/components/animated-counter';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { cn } from '@/lib/utils';
@@ -456,25 +456,15 @@ export default function PublicResultsPage() {
                   </div>
                 </div>
 
-                {/* Interactive Three.js Trophy Crest */}
-                <div className="relative h-64 w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] sm:h-72 lg:h-80">
-                  <TeamOrbitCanvas
-                    variant="festival"
-                    pulseKey={`${results.length}-${topScore}`}
-                  />
-                  <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2 text-[11px]">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/70 px-3 py-1 text-slate-200 backdrop-blur-md">
-                      <Sparkles className="h-3 w-3 text-amber-400" />
-                      Click crest to pulse
-                    </span>
-                    {topTeam && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-slate-950/75 px-3 py-1 font-mono font-semibold text-amber-300 backdrop-blur-md">
-                        <Crown className="h-3 w-3" />
-                        {topTeam.totalPoints.toFixed(2)} pts
-                      </span>
-                    )}
-                  </div>
-                </div>
+                {/* Interactive Animated Mascot & Three.js Trophy Crest */}
+                <MascotOrbitShowcase
+                  orbitVariant="festival"
+                  badgeText={festName}
+                  pulseKey={`${results.length}-${topScore}`}
+                  footerLeftText="Click crest to pulse"
+                  footerRightText={topTeam ? `${topTeam.totalPoints.toFixed(2)} pts` : undefined}
+                  frameTone="dark"
+                />
               </div>
             </section>
 
