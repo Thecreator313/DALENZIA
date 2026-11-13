@@ -997,8 +997,8 @@ export function PosterStudioEditor({
       selection.part === 'badge'
         ? 'Rank Prefix'
         : selection.part === 'name'
-        ? 'Winner Name'
-        : 'Team Name';
+          ? 'Winner Name'
+          : 'Team Name';
     return `${slotName} • ${partLabel}`;
   }, [selection, settings.winnerSlots]);
 
@@ -1306,10 +1306,10 @@ export function PosterStudioEditor({
                               {slot.badge.mode === 'boxed-number'
                                 ? '[1]'
                                 : slot.badge.mode === 'boxed-dots'
-                                ? '[••]'
-                                : slot.badge.mode === 'dots'
-                                ? '••'
-                                : '1,2'}
+                                  ? '[••]'
+                                  : slot.badge.mode === 'dots'
+                                    ? '••'
+                                    : '1,2'}
                             </span>
                           </button>
                           <button
@@ -1544,10 +1544,10 @@ export function PosterStudioEditor({
               {selection.kind === 'canvas'
                 ? 'Canvas & Background'
                 : selection.kind === 'slot-group'
-                ? 'Winner Slot Group'
-                : selection.kind === 'slot-part' && selection.part === 'badge'
-                ? 'Rank Prefix Style'
-                : 'Text Properties'}
+                  ? 'Winner Slot Group'
+                  : selection.kind === 'slot-part' && selection.part === 'badge'
+                    ? 'Rank Prefix Style'
+                    : 'Text Properties'}
             </span>
             <Badge variant="outline" className="max-w-[175px] truncate rounded-full text-[10px]">
               {selectionSummaryLabel}
@@ -2029,28 +2029,94 @@ export function PosterStudioEditor({
                     {/* Box Controls (for Boxed Number & Boxed Dots) */}
                     {(activeSlot.badge.mode === 'boxed-number' ||
                       activeSlot.badge.mode === 'boxed-dots') && (
-                      <div className="space-y-3 border-t border-border/60 pt-3">
-                        <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                          Box Dimensions &amp; Color
-                        </Label>
+                        <div className="space-y-3 border-t border-border/60 pt-3">
+                          <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Box Dimensions &amp; Color
+                          </Label>
 
-                        <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[11px]">
+                                <span>Width</span>
+                                <span className="font-mono text-muted-foreground">
+                                  {activeSlot.badge.boxWidth}px
+                                </span>
+                              </div>
+                              <Slider
+                                value={[activeSlot.badge.boxWidth]}
+                                min={24}
+                                max={220}
+                                step={2}
+                                onValueChange={([val]) =>
+                                  updateSlot(activeSlot.id, (s) => ({
+                                    ...s,
+                                    badge: { ...s.badge, boxWidth: val },
+                                  }))
+                                }
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[11px]">
+                                <span>Height</span>
+                                <span className="font-mono text-muted-foreground">
+                                  {activeSlot.badge.boxHeight}px
+                                </span>
+                              </div>
+                              <Slider
+                                value={[activeSlot.badge.boxHeight]}
+                                min={24}
+                                max={220}
+                                step={2}
+                                onValueChange={([val]) =>
+                                  updateSlot(activeSlot.id, (s) => ({
+                                    ...s,
+                                    badge: { ...s.badge, boxHeight: val },
+                                  }))
+                                }
+                              />
+                            </div>
+                          </div>
+
                           <div className="space-y-1">
                             <div className="flex justify-between text-[11px]">
-                              <span>Width</span>
+                              <span>Corner Radius</span>
                               <span className="font-mono text-muted-foreground">
-                                {activeSlot.badge.boxWidth}px
+                                {activeSlot.badge.borderRadius}px
                               </span>
                             </div>
                             <Slider
-                              value={[activeSlot.badge.boxWidth]}
-                              min={24}
-                              max={220}
+                              value={[activeSlot.badge.borderRadius]}
+                              min={0}
+                              max={100}
                               step={2}
                               onValueChange={([val]) =>
                                 updateSlot(activeSlot.id, (s) => ({
                                   ...s,
-                                  badge: { ...s.badge, boxWidth: val },
+                                  badge: { ...s.badge, borderRadius: val },
+                                }))
+                              }
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <ColorSwatchPicker
+                              label="Box Color"
+                              value={activeSlot.badge.boxColor}
+                              onChange={(hex) =>
+                                updateSlot(activeSlot.id, (s) => ({
+                                  ...s,
+                                  badge: { ...s.badge, boxColor: hex },
+                                }))
+                              }
+                            />
+                            <ColorSwatchPicker
+                              label="Border Color"
+                              value={activeSlot.badge.borderColor}
+                              onChange={(hex) =>
+                                updateSlot(activeSlot.id, (s) => ({
+                                  ...s,
+                                  badge: { ...s.badge, borderColor: hex },
                                 }))
                               }
                             />
@@ -2058,179 +2124,65 @@ export function PosterStudioEditor({
 
                           <div className="space-y-1">
                             <div className="flex justify-between text-[11px]">
-                              <span>Height</span>
+                              <span>Border Thickness</span>
                               <span className="font-mono text-muted-foreground">
-                                {activeSlot.badge.boxHeight}px
+                                {activeSlot.badge.borderWidth}px
                               </span>
                             </div>
                             <Slider
-                              value={[activeSlot.badge.boxHeight]}
-                              min={24}
-                              max={220}
-                              step={2}
+                              value={[activeSlot.badge.borderWidth]}
+                              min={0}
+                              max={12}
+                              step={1}
                               onValueChange={([val]) =>
                                 updateSlot(activeSlot.id, (s) => ({
                                   ...s,
-                                  badge: { ...s.badge, boxHeight: val },
+                                  badge: { ...s.badge, borderWidth: val },
                                 }))
                               }
                             />
                           </div>
                         </div>
-
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-[11px]">
-                            <span>Corner Radius</span>
-                            <span className="font-mono text-muted-foreground">
-                              {activeSlot.badge.borderRadius}px
-                            </span>
-                          </div>
-                          <Slider
-                            value={[activeSlot.badge.borderRadius]}
-                            min={0}
-                            max={100}
-                            step={2}
-                            onValueChange={([val]) =>
-                              updateSlot(activeSlot.id, (s) => ({
-                                ...s,
-                                badge: { ...s.badge, borderRadius: val },
-                              }))
-                            }
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <ColorSwatchPicker
-                            label="Box Color"
-                            value={activeSlot.badge.boxColor}
-                            onChange={(hex) =>
-                              updateSlot(activeSlot.id, (s) => ({
-                                ...s,
-                                badge: { ...s.badge, boxColor: hex },
-                              }))
-                            }
-                          />
-                          <ColorSwatchPicker
-                            label="Border Color"
-                            value={activeSlot.badge.borderColor}
-                            onChange={(hex) =>
-                              updateSlot(activeSlot.id, (s) => ({
-                                ...s,
-                                badge: { ...s.badge, borderColor: hex },
-                              }))
-                            }
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-[11px]">
-                            <span>Border Thickness</span>
-                            <span className="font-mono text-muted-foreground">
-                              {activeSlot.badge.borderWidth}px
-                            </span>
-                          </div>
-                          <Slider
-                            value={[activeSlot.badge.borderWidth]}
-                            min={0}
-                            max={12}
-                            step={1}
-                            onValueChange={([val]) =>
-                              updateSlot(activeSlot.id, (s) => ({
-                                ...s,
-                                badge: { ...s.badge, borderWidth: val },
-                              }))
-                            }
-                          />
-                        </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* Number Format & Typography (for Number & Boxed Number) */}
                     {(activeSlot.badge.mode === 'number' ||
                       activeSlot.badge.mode === 'boxed-number') && (
-                      <div className="space-y-3 border-t border-border/60 pt-3">
-                        <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                          Number Style
-                        </Label>
+                        <div className="space-y-3 border-t border-border/60 pt-3">
+                          <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Number Style
+                          </Label>
 
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {(['1', '01', '1ST'] as PosterNumberFormat[]).map((fmt) => (
-                            <Button
-                              key={fmt}
-                              type="button"
-                              size="sm"
-                              variant={
-                                activeSlot.badge.numberFormat === fmt ? 'default' : 'outline'
-                              }
-                              onClick={() =>
-                                updateSlot(activeSlot.id, (s) => ({
-                                  ...s,
-                                  badge: { ...s.badge, numberFormat: fmt },
-                                }))
-                              }
-                              className="h-7 text-[11px] font-mono"
-                            >
-                              {fmt}
-                            </Button>
-                          ))}
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label className="text-[11px]">Font Family</Label>
-                          <Select
-                            value={activeSlot.badge.fontFamily}
-                            onValueChange={(v) =>
-                              updateSlot(activeSlot.id, (s) => ({
-                                ...s,
-                                badge: { ...s.badge, fontFamily: v },
-                              }))
-                            }
-                          >
-                            <SelectTrigger className="h-8 rounded-lg text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {POSTER_FONTS.map((f) => (
-                                <SelectItem key={f.id} value={f.id}>
-                                  <span style={{ fontFamily: getFontCssFamily(f.id) }}>
-                                    {f.label}
-                                  </span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-[11px]">
-                            <span>Number Size</span>
-                            <span className="font-mono text-muted-foreground">
-                              {activeSlot.badge.fontSize}px
-                            </span>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {(['1', '01', '1ST'] as PosterNumberFormat[]).map((fmt) => (
+                              <Button
+                                key={fmt}
+                                type="button"
+                                size="sm"
+                                variant={
+                                  activeSlot.badge.numberFormat === fmt ? 'default' : 'outline'
+                                }
+                                onClick={() =>
+                                  updateSlot(activeSlot.id, (s) => ({
+                                    ...s,
+                                    badge: { ...s.badge, numberFormat: fmt },
+                                  }))
+                                }
+                                className="h-7 text-[11px] font-mono"
+                              >
+                                {fmt}
+                              </Button>
+                            ))}
                           </div>
-                          <Slider
-                            value={[activeSlot.badge.fontSize]}
-                            min={12}
-                            max={110}
-                            step={1}
-                            onValueChange={([val]) =>
-                              updateSlot(activeSlot.id, (s) => ({
-                                ...s,
-                                badge: { ...s.badge, fontSize: val },
-                              }))
-                            }
-                          />
-                        </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-[11px]">Weight</Label>
+                          <div className="space-y-1.5">
+                            <Label className="text-[11px]">Font Family</Label>
                             <Select
-                              value={activeSlot.badge.fontWeight}
+                              value={activeSlot.badge.fontFamily}
                               onValueChange={(v) =>
                                 updateSlot(activeSlot.id, (s) => ({
                                   ...s,
-                                  badge: { ...s.badge, fontWeight: v as PosterFontWeight },
+                                  badge: { ...s.badge, fontFamily: v },
                                 }))
                               }
                             >
@@ -2238,93 +2190,141 @@ export function PosterStudioEditor({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="500">Medium</SelectItem>
-                                <SelectItem value="600">Semi Bold</SelectItem>
-                                <SelectItem value="700">Bold</SelectItem>
-                                <SelectItem value="800">Extra Bold</SelectItem>
-                                <SelectItem value="900">Black</SelectItem>
+                                {POSTER_FONTS.map((f) => (
+                                  <SelectItem key={f.id} value={f.id}>
+                                    <span style={{ fontFamily: getFontCssFamily(f.id) }}>
+                                      {f.label}
+                                    </span>
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
 
-                          <ColorSwatchPicker
-                            label="Number Color"
-                            value={activeSlot.badge.textColor}
-                            onChange={(hex) =>
-                              updateSlot(activeSlot.id, (s) => ({
-                                ...s,
-                                badge: { ...s.badge, textColor: hex },
-                              }))
-                            }
-                          />
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[11px]">
+                              <span>Number Size</span>
+                              <span className="font-mono text-muted-foreground">
+                                {activeSlot.badge.fontSize}px
+                              </span>
+                            </div>
+                            <Slider
+                              value={[activeSlot.badge.fontSize]}
+                              min={12}
+                              max={110}
+                              step={1}
+                              onValueChange={([val]) =>
+                                updateSlot(activeSlot.id, (s) => ({
+                                  ...s,
+                                  badge: { ...s.badge, fontSize: val },
+                                }))
+                              }
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[11px]">Weight</Label>
+                              <Select
+                                value={activeSlot.badge.fontWeight}
+                                onValueChange={(v) =>
+                                  updateSlot(activeSlot.id, (s) => ({
+                                    ...s,
+                                    badge: { ...s.badge, fontWeight: v as PosterFontWeight },
+                                  }))
+                                }
+                              >
+                                <SelectTrigger className="h-8 rounded-lg text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="500">Medium</SelectItem>
+                                  <SelectItem value="600">Semi Bold</SelectItem>
+                                  <SelectItem value="700">Bold</SelectItem>
+                                  <SelectItem value="800">Extra Bold</SelectItem>
+                                  <SelectItem value="900">Black</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <ColorSwatchPicker
+                              label="Number Color"
+                              value={activeSlot.badge.textColor}
+                              onChange={(hex) =>
+                                updateSlot(activeSlot.id, (s) => ({
+                                  ...s,
+                                  badge: { ...s.badge, textColor: hex },
+                                }))
+                              }
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* Dots Controls (for Dots & Boxed Dots) */}
                     {(activeSlot.badge.mode === 'dots' ||
                       activeSlot.badge.mode === 'boxed-dots') && (
-                      <div className="space-y-3 border-t border-border/60 pt-3">
-                        <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                          Dots Appearance (1 / 2 / 3 Dots)
-                        </Label>
+                        <div className="space-y-3 border-t border-border/60 pt-3">
+                          <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Dots Appearance (1 / 2 / 3 Dots)
+                          </Label>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-[11px]">
-                              <span>Dot Size</span>
-                              <span className="font-mono text-muted-foreground">
-                                {activeSlot.badge.dotSize}px
-                              </span>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[11px]">
+                                <span>Dot Size</span>
+                                <span className="font-mono text-muted-foreground">
+                                  {activeSlot.badge.dotSize}px
+                                </span>
+                              </div>
+                              <Slider
+                                value={[activeSlot.badge.dotSize]}
+                                min={4}
+                                max={42}
+                                step={1}
+                                onValueChange={([val]) =>
+                                  updateSlot(activeSlot.id, (s) => ({
+                                    ...s,
+                                    badge: { ...s.badge, dotSize: val },
+                                  }))
+                                }
+                              />
                             </div>
-                            <Slider
-                              value={[activeSlot.badge.dotSize]}
-                              min={4}
-                              max={42}
-                              step={1}
-                              onValueChange={([val]) =>
-                                updateSlot(activeSlot.id, (s) => ({
-                                  ...s,
-                                  badge: { ...s.badge, dotSize: val },
-                                }))
-                              }
-                            />
+
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[11px]">
+                                <span>Dot Gap</span>
+                                <span className="font-mono text-muted-foreground">
+                                  {activeSlot.badge.dotGap}px
+                                </span>
+                              </div>
+                              <Slider
+                                value={[activeSlot.badge.dotGap]}
+                                min={1}
+                                max={32}
+                                step={1}
+                                onValueChange={([val]) =>
+                                  updateSlot(activeSlot.id, (s) => ({
+                                    ...s,
+                                    badge: { ...s.badge, dotGap: val },
+                                  }))
+                                }
+                              />
+                            </div>
                           </div>
 
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-[11px]">
-                              <span>Dot Gap</span>
-                              <span className="font-mono text-muted-foreground">
-                                {activeSlot.badge.dotGap}px
-                              </span>
-                            </div>
-                            <Slider
-                              value={[activeSlot.badge.dotGap]}
-                              min={1}
-                              max={32}
-                              step={1}
-                              onValueChange={([val]) =>
-                                updateSlot(activeSlot.id, (s) => ({
-                                  ...s,
-                                  badge: { ...s.badge, dotGap: val },
-                                }))
-                              }
-                            />
-                          </div>
+                          <ColorSwatchPicker
+                            label="Dot Color"
+                            value={activeSlot.badge.dotColor}
+                            onChange={(hex) =>
+                              updateSlot(activeSlot.id, (s) => ({
+                                ...s,
+                                badge: { ...s.badge, dotColor: hex },
+                              }))
+                            }
+                          />
                         </div>
-
-                        <ColorSwatchPicker
-                          label="Dot Color"
-                          value={activeSlot.badge.dotColor}
-                          onChange={(hex) =>
-                            updateSlot(activeSlot.id, (s) => ({
-                              ...s,
-                              badge: { ...s.badge, dotColor: hex },
-                            }))
-                          }
-                        />
-                      </div>
-                    )}
+                      )}
 
                     {/* Badge Position & Shadow */}
                     <div className="space-y-3 border-t border-border/60 pt-3">
