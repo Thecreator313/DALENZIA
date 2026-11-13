@@ -297,7 +297,7 @@ export default function AssignParticipantsPage() {
     statusCounts.total > 0 ? Math.round((statusCounts.full / statusCounts.total) * 100) : 0;
 
   return (
-    <div ref={pageRef} className="space-y-8 relative min-h-screen pb-8">
+    <div ref={pageRef} className="space-y-6 sm:space-y-8 relative min-h-screen pb-8">
       {/* Ambient Background */}
       <div className="fixed inset-0 -z-10 h-full w-full overflow-hidden pointer-events-none">
         <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-indigo-500/10 blur-[120px]" />
@@ -308,11 +308,11 @@ export default function AssignParticipantsPage() {
       {/* Hero Assignment Banner */}
       <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/85 via-card/65 to-indigo-500/10 backdrop-blur-xl shadow-xl">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.16),transparent_55%),radial-gradient(circle_at_bottom_left,rgba(168,85,247,0.12),transparent_50%)] pointer-events-none" />
-        <div className="grid lg:grid-cols-[1.45fr_1fr] items-center gap-6 p-6 sm:p-8 relative z-10">
-          <div className="space-y-6">
-            <div className="space-y-3">
+        <div className="grid lg:grid-cols-[1.45fr_1fr] items-center gap-5 sm:gap-6 p-4 sm:p-8 relative z-10">
+          <div className="space-y-5 sm:space-y-6">
+            <div className="space-y-2.5 sm:space-y-3">
               <div className="assign-hero-stagger inline-flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3.5 py-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                <span className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
@@ -320,24 +320,24 @@ export default function AssignParticipantsPage() {
                   Assignment Studio • Live Sync
                 </span>
                 {!settings.allowTeamAssignment && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
                     <Lock className="h-3 w-3" /> Editing Locked by Admin
                   </span>
                 )}
               </div>
 
               <div className="assign-hero-stagger">
-                <h1 className="text-3xl sm:text-4xl font-bold font-headline tracking-tight bg-gradient-to-r from-foreground via-foreground to-indigo-500 bg-clip-text text-transparent">
+                <h1 className="text-2xl sm:text-4xl font-bold font-headline tracking-tight bg-gradient-to-r from-foreground via-foreground to-indigo-500 bg-clip-text text-transparent">
                   Assign Participants
                 </h1>
-                <p className="text-muted-foreground mt-1.5 max-w-xl text-sm sm:text-base">
+                <p className="text-muted-foreground mt-1 max-w-xl text-xs sm:text-base">
                   Match eligible team members to stage and off-stage events and track slot completion in real time.
                 </p>
               </div>
             </div>
 
             {/* Completion Bar */}
-            <div className="assign-hero-stagger rounded-2xl border border-border/60 bg-background/55 backdrop-blur-md p-4 space-y-2 max-w-xl">
+            <div className="assign-hero-stagger rounded-2xl border border-border/60 bg-background/55 backdrop-blur-md p-3 sm:p-4 space-y-2 max-w-xl">
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="font-medium text-muted-foreground">Overall Assignment Completion</span>
                 <span className="font-mono font-semibold text-foreground">
@@ -353,7 +353,7 @@ export default function AssignParticipantsPage() {
             </div>
 
             {/* Interactive Status Filter KPI Pills */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 pt-1">
               {[
                 { key: 'all', label: 'All Programs', val: statusCounts.total, icon: Filter, accent: 'text-primary bg-primary/10 border-primary/20' },
                 { key: 'full', label: 'Fully Assigned', val: statusCounts.full, icon: CheckCircle2, accent: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
@@ -367,7 +367,7 @@ export default function AssignParticipantsPage() {
                     type="button"
                     onClick={() => setStatusFilter(item.key)}
                     className={cn(
-                      'assign-kpi-pill text-left rounded-2xl border backdrop-blur-md p-3 transition-all duration-200 hover:-translate-y-0.5',
+                      'assign-kpi-pill text-left rounded-2xl border backdrop-blur-md p-2.5 sm:p-3 transition-all duration-200 hover:-translate-y-0.5',
                       isActive
                         ? 'border-primary/50 bg-primary/10 shadow-md ring-1 ring-primary/25'
                         : 'border-border/60 bg-background/60 hover:border-primary/30'
@@ -381,7 +381,7 @@ export default function AssignParticipantsPage() {
                         <item.icon className="h-3 w-3" />
                       </span>
                     </div>
-                    <div className="text-xl font-bold font-headline tracking-tight">
+                    <div className="text-lg sm:text-xl font-bold font-headline tracking-tight">
                       <AnimatedCounter value={item.val} />
                     </div>
                   </button>
@@ -391,7 +391,7 @@ export default function AssignParticipantsPage() {
           </div>
 
           {/* Interactive Three.js Crest */}
-          <div className="relative h-60 sm:h-72 lg:h-80 w-full rounded-2xl border border-border/40 bg-gradient-to-b from-indigo-500/5 via-transparent to-purple-500/5 overflow-hidden">
+          <div className="relative h-56 sm:h-72 lg:h-80 w-full rounded-2xl border border-border/40 bg-gradient-to-b from-indigo-500/5 via-transparent to-purple-500/5 overflow-hidden">
             <TeamOrbitCanvas variant="assignments" pulseKey={`${statusCounts.full}-${statusCounts.partial}`} />
             <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-muted-foreground">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-background/75 backdrop-blur-md border border-border/50 px-2.5 py-1">
@@ -409,27 +409,27 @@ export default function AssignParticipantsPage() {
 
       {/* Filter & Program Cards Directory */}
       <Card className="border-border/60 bg-card/55 backdrop-blur-xl shadow-lg overflow-hidden">
-        <CardHeader className="border-b border-border/50 bg-muted/20 space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <CardHeader className="border-b border-border/50 bg-muted/20 p-4 sm:p-6 space-y-3 sm:space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
             <div>
-              <CardTitle className="flex items-center gap-2 text-xl">
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                 <Filter className="w-5 h-5 text-primary" />
                 Program Assignments
                 <Badge variant="secondary" className="rounded-full font-mono text-xs">
                   {filteredPrograms.length} / {programs.length}
                 </Badge>
               </CardTitle>
-              <CardDescription>Select any program to assign or update your team participants.</CardDescription>
+              <CardDescription className="text-xs sm:text-sm">Select any program to assign or update your team participants.</CardDescription>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search programs..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 pr-8 bg-background/70 border-border/60 rounded-xl"
+                  className="pl-9 pr-8 bg-background/70 border-border/60 rounded-xl text-sm"
                 />
                 {searchTerm && (
                   <button
@@ -444,7 +444,7 @@ export default function AssignParticipantsPage() {
               </div>
 
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-full sm:w-[185px] bg-background/70 border-border/60 rounded-xl">
+                <SelectTrigger className="w-full sm:w-[185px] bg-background/70 border-border/60 rounded-xl text-sm">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -455,12 +455,12 @@ export default function AssignParticipantsPage() {
                 </SelectContent>
               </Select>
 
-              <div className="inline-flex rounded-xl border border-border/60 bg-background/70 p-1 self-start sm:self-auto">
+              <div className="inline-flex rounded-xl border border-border/60 bg-background/70 p-1 self-stretch sm:self-auto justify-center sm:justify-start">
                 <button
                   type="button"
                   onClick={() => setViewMode('grid')}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all',
+                    'flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
                     viewMode === 'grid'
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
@@ -472,7 +472,7 @@ export default function AssignParticipantsPage() {
                   type="button"
                   onClick={() => setViewMode('list')}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all',
+                    'flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
                     viewMode === 'list'
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
@@ -484,16 +484,16 @@ export default function AssignParticipantsPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex rounded-xl border border-border/60 bg-background/60 p-1">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 pt-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="inline-flex rounded-xl border border-border/60 bg-background/60 p-1 justify-center sm:justify-start">
                 {(['all', 'individual', 'group'] as const).map((type) => (
                   <button
                     key={type}
                     type="button"
                     onClick={() => setTypeFilter(type)}
                     className={cn(
-                      'rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all',
+                      'flex-1 sm:flex-none rounded-lg px-3 py-1 text-xs font-medium capitalize transition-all text-center',
                       typeFilter === type
                         ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25 shadow-sm'
                         : 'text-muted-foreground hover:text-foreground border border-transparent'
@@ -505,7 +505,7 @@ export default function AssignParticipantsPage() {
               </div>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-8 w-[165px] bg-background/60 border-border/60 rounded-xl text-xs">
+                <SelectTrigger className="h-8 w-full sm:w-[165px] bg-background/60 border-border/60 rounded-xl text-xs">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -518,19 +518,19 @@ export default function AssignParticipantsPage() {
             </div>
 
             {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={resetFilters} className="h-8 text-xs text-muted-foreground hover:text-foreground">
+              <Button variant="ghost" size="sm" onClick={resetFilters} className="h-8 text-xs text-muted-foreground hover:text-foreground self-end sm:self-auto">
                 <X className="mr-1.5 h-3.5 w-3.5" /> Reset Filters
               </Button>
             )}
           </div>
         </CardHeader>
 
-        <CardContent className="p-6">
+        <CardContent className="p-3.5 sm:p-6">
           <div
             ref={gridRef}
             className={cn(
               viewMode === 'grid'
-                ? 'grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                ? 'grid gap-3 sm:gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
                 : 'flex flex-col gap-3'
             )}
           >
@@ -868,11 +868,11 @@ function AssignParticipantDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg bg-background/95 backdrop-blur-xl border-white/10">
+      <DialogContent className="sm:max-w-lg w-[94vw] max-h-[88vh] overflow-y-auto p-4 sm:p-6 rounded-2xl bg-background/95 backdrop-blur-xl border-border/60">
         <DialogHeader>
-          <DialogTitle className="font-headline text-xl">Assign Participants to &quot;{program.name}&quot;</DialogTitle>
+          <DialogTitle className="font-headline text-lg sm:text-xl">Assign Participants to &quot;{program.name}&quot;</DialogTitle>
           <div className="flex items-center justify-between gap-2 pt-1">
-            <DialogDescription>
+            <DialogDescription className="text-xs sm:text-sm">
               Select up to {program.participantsCount} participant(s).
             </DialogDescription>
             <div className="flex items-center gap-2 shrink-0">
@@ -906,10 +906,10 @@ function AssignParticipantDialog({
               placeholder="Search eligible participants..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-muted/50 border-white/10"
+              className="pl-10 bg-muted/50 border-white/10 text-sm"
             />
           </div>
-          <ScrollArea className="h-72 border border-white/10 rounded-md bg-muted/20 p-2">
+          <ScrollArea className="h-60 sm:h-72 border border-border/40 rounded-xl bg-muted/20 p-2">
             <div className="space-y-2">
               {eligibleParticipants.length > 0 ? (
                 eligibleParticipants.map((participant) => {
@@ -918,18 +918,18 @@ function AssignParticipantDialog({
                     <div
                       key={participant.id}
                       className={cn(
-                        "flex items-center justify-between rounded-lg p-3 transition-colors cursor-pointer border border-transparent",
-                        isSelected ? "bg-primary/10 border-primary/20" : "hover:bg-white/5"
+                        "flex items-center justify-between rounded-lg p-2.5 sm:p-3 transition-colors cursor-pointer border border-transparent",
+                        isSelected ? "bg-primary/10 border-primary/20" : "hover:bg-muted/40"
                       )}
                       onClick={() => handleCheckboxChange(participant.id, !isSelected)}
                     >
                       <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9 border border-white/10">
-                          <AvatarFallback className="bg-primary/20 text-primary text-xs">{participant.name.charAt(0).toUpperCase()}</AvatarFallback>
+                        <Avatar className="h-9 w-9 border border-border/60">
+                          <AvatarFallback className="bg-primary/20 text-primary text-xs font-bold">{participant.name.charAt(0).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium text-sm leading-none">{participant.name}</p>
-                          <p className="text-xs text-muted-foreground mt-1">Chest No: <span className="font-mono">{participant.chestNumber}</span></p>
+                          <p className="font-semibold text-sm leading-none text-foreground">{participant.name}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Chest No: <span className="font-mono font-bold text-primary">#{participant.chestNumber}</span></p>
                         </div>
                       </div>
                       <Checkbox
@@ -937,7 +937,7 @@ function AssignParticipantDialog({
                         checked={isSelected}
                         onClick={(e) => e.stopPropagation()}
                         onCheckedChange={(checked) => handleCheckboxChange(participant.id, !!checked)}
-                        className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                       />
                     </div>
                   );
@@ -945,8 +945,8 @@ function AssignParticipantDialog({
               ) : (
                 <div className="text-center text-muted-foreground py-10 flex flex-col items-center">
                   <Users className="h-10 w-10 opacity-30 mb-3" />
-                  <p className="font-semibold text-sm">No Eligible Participants</p>
-                  <p className="text-xs mt-1 max-w-[200px]">
+                  <p className="font-semibold text-sm text-foreground">No Eligible Participants</p>
+                  <p className="text-xs mt-1 max-w-[220px]">
                     {searchTerm
                       ? "No participants match your search."
                       : "There are no participants in your team eligible for this program's category."
@@ -957,11 +957,11 @@ function AssignParticipantDialog({
             </div>
           </ScrollArea>
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-0 pt-2">
           <DialogClose asChild>
-            <Button type="button" variant="ghost">Cancel</Button>
+            <Button type="button" variant="outline" className="w-full sm:w-auto">Cancel</Button>
           </DialogClose>
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button onClick={handleSave} disabled={isSaving} className="w-full sm:w-auto">
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Assignments
           </Button>

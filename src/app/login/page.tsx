@@ -37,16 +37,16 @@ const loginSchema = z.object({
 const redirectToPanel = (role: string, router: any) => {
     switch (role) {
         case 'admin':
-          router.push('/admin');
+          router.push('/admin/dashboard');
           break;
         case 'team':
-          router.push('/teams');
+          router.push('/teams/dashboard');
           break;
         case 'judges':
-          router.push('/judges');
+          router.push('/judges/dashboard');
           break;
         case 'stagecontroller':
-          router.push('/stage-control');
+          router.push('/stage-control/dashboard');
           break;
         default:
           // Stay on login page if role is unknown

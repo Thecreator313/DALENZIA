@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
+import { ClientRedirect } from '@/components/client-redirect';
 
 export default function JudgesPage() {
-  redirect('/judges/dashboard')
+  return <ClientRedirect to="/judges/dashboard" />;
 }

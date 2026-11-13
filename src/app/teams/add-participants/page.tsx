@@ -417,7 +417,7 @@ export default function AddParticipantsPage() {
     }
 
     return (
-        <div ref={pageRef} className="space-y-8 relative min-h-screen pb-8">
+        <div ref={pageRef} className="space-y-6 sm:space-y-8 relative min-h-screen pb-8">
             {/* Ambient Background */}
             <div className="fixed inset-0 -z-10 h-full w-full overflow-hidden pointer-events-none">
                 <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-cyan-500/10 blur-[120px]" />
@@ -428,28 +428,28 @@ export default function AddParticipantsPage() {
             {/* Hero Roster Banner with Three.js Sculpture */}
             <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/85 via-card/65 to-cyan-500/10 backdrop-blur-xl shadow-xl">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.16),transparent_55%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.12),transparent_50%)] pointer-events-none" />
-                <div className="grid lg:grid-cols-[1.45fr_1fr] items-center gap-6 p-6 sm:p-8 relative z-10">
-                    <div className="space-y-6">
-                        <div className="space-y-3">
+                <div className="grid lg:grid-cols-[1.45fr_1fr] items-center gap-5 sm:gap-6 p-4 sm:p-8 relative z-10">
+                    <div className="space-y-5 sm:space-y-6">
+                        <div className="space-y-2.5 sm:space-y-3">
                             <div className="roster-hero-stagger inline-flex flex-wrap items-center gap-2">
-                                <span className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-1 text-xs font-semibold text-cyan-600 dark:text-cyan-400">
+                                <span className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-600 dark:text-cyan-400">
                                     <span className="relative flex h-2 w-2">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
                                         <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
                                     </span>
                                     Team Roster • {team.name}
                                 </span>
-                                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-3 py-1 text-xs font-medium text-muted-foreground">
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-xs font-medium text-muted-foreground">
                                     <Hash className="h-3 w-3 text-primary" />
                                     Next Chest #{nextChestNumber}
                                 </span>
                             </div>
 
                             <div className="roster-hero-stagger">
-                                <h1 className="text-3xl sm:text-4xl font-bold font-headline tracking-tight bg-gradient-to-r from-foreground via-foreground to-cyan-500 bg-clip-text text-transparent">
+                                <h1 className="text-2xl sm:text-4xl font-bold font-headline tracking-tight bg-gradient-to-r from-foreground via-foreground to-cyan-500 bg-clip-text text-transparent">
                                     Manage Participants
                                 </h1>
-                                <p className="text-muted-foreground mt-1.5 max-w-xl text-sm sm:text-base">
+                                <p className="text-muted-foreground mt-1 max-w-xl text-xs sm:text-base">
                                     Register team members with automatic chest numbering and organize them across member categories.
                                 </p>
                             </div>
@@ -461,12 +461,12 @@ export default function AddParticipantsPage() {
                                     <Button
                                         onClick={openAddForm}
                                         size="lg"
-                                        className="rounded-xl shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/35 hover:-translate-y-0.5 transition-all duration-200 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 text-white border-0"
+                                        className="w-full sm:w-auto rounded-xl shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/35 hover:-translate-y-0.5 transition-all duration-200 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 text-white border-0"
                                     >
                                         <UserPlus className="mr-2 h-4 w-4" /> Add Participant
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent className="bg-background/95 backdrop-blur-xl border-border/60">
+                                <DialogContent className="sm:max-w-md w-[92vw] max-h-[90vh] overflow-y-auto rounded-2xl bg-background/95 backdrop-blur-xl border-border/60 p-4 sm:p-6">
                                     <DialogHeader>
                                         <DialogTitle className="text-xl font-headline">
                                             {editingParticipant ? 'Edit Participant' : 'Register New Participant'}
@@ -524,9 +524,9 @@ export default function AddParticipantsPage() {
                                                     </FormItem>
                                                 )} />
                                             )}
-                                            <DialogFooter>
-                                                <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                                                <Button type="submit" disabled={isSubmitting}>
+                                            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                                                <DialogClose asChild><Button type="button" variant="outline" className="w-full sm:w-auto">Cancel</Button></DialogClose>
+                                                <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                                                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                                     {editingParticipant ? 'Save Changes' : 'Add Participant'}
                                                 </Button>
@@ -538,12 +538,12 @@ export default function AddParticipantsPage() {
                         </div>
 
                         {/* Interactive Category KPI Strip */}
-                        <div className="flex flex-wrap gap-2.5 pt-1">
+                        <div className="flex flex-wrap gap-2 sm:gap-2.5 pt-1">
                             <button
                                 type="button"
                                 onClick={() => setCategoryFilter('all')}
                                 className={cn(
-                                    'roster-kpi-pill min-w-[120px] text-left rounded-2xl border backdrop-blur-md p-3 transition-all duration-200 hover:-translate-y-0.5',
+                                    'roster-kpi-pill flex-1 min-w-[95px] sm:min-w-[120px] text-left rounded-2xl border backdrop-blur-md p-2.5 sm:p-3 transition-all duration-200 hover:-translate-y-0.5',
                                     categoryFilter === 'all'
                                         ? 'border-primary/50 bg-primary/10 shadow-md ring-1 ring-primary/25'
                                         : 'border-border/60 bg-background/60 hover:border-primary/30'
@@ -552,7 +552,7 @@ export default function AddParticipantsPage() {
                                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
                                     All Members
                                 </span>
-                                <div className="text-xl font-bold font-headline mt-0.5">
+                                <div className="text-lg sm:text-xl font-bold font-headline mt-0.5">
                                     <AnimatedCounter value={participants.length} />
                                 </div>
                             </button>
@@ -565,16 +565,16 @@ export default function AddParticipantsPage() {
                                         type="button"
                                         onClick={() => setCategoryFilter(cat.id)}
                                         className={cn(
-                                            'roster-kpi-pill min-w-[120px] text-left rounded-2xl border backdrop-blur-md p-3 transition-all duration-200 hover:-translate-y-0.5',
+                                            'roster-kpi-pill flex-1 min-w-[95px] sm:min-w-[120px] text-left rounded-2xl border backdrop-blur-md p-2.5 sm:p-3 transition-all duration-200 hover:-translate-y-0.5',
                                             isActive
                                                 ? 'border-cyan-500/50 bg-cyan-500/10 shadow-md ring-1 ring-cyan-500/25'
                                                 : 'border-border/60 bg-background/60 hover:border-cyan-500/30'
                                         )}
                                     >
-                                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block truncate max-w-[140px]">
+                                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block truncate max-w-[120px] sm:max-w-[140px]">
                                             {cat.name}
                                         </span>
-                                        <div className="text-xl font-bold font-headline mt-0.5">
+                                        <div className="text-lg sm:text-xl font-bold font-headline mt-0.5">
                                             <AnimatedCounter value={categoryCounts[cat.id] || 0} />
                                         </div>
                                     </button>
@@ -584,7 +584,7 @@ export default function AddParticipantsPage() {
                     </div>
 
                     {/* Interactive Three.js Crest */}
-                    <div className="relative h-60 sm:h-72 lg:h-80 w-full rounded-2xl border border-border/40 bg-gradient-to-b from-cyan-500/5 via-transparent to-emerald-500/5 overflow-hidden">
+                    <div className="relative h-56 sm:h-72 lg:h-80 w-full rounded-2xl border border-border/40 bg-gradient-to-b from-cyan-500/5 via-transparent to-emerald-500/5 overflow-hidden">
                         <TeamOrbitCanvas variant="participants" pulseKey={participants.length} />
                         <div className="pointer-events-none absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-muted-foreground">
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-background/75 backdrop-blur-md border border-border/50 px-2.5 py-1">
@@ -602,27 +602,27 @@ export default function AddParticipantsPage() {
 
             {/* Roster Card */}
             <Card className="border-border/60 bg-card/55 backdrop-blur-xl shadow-lg overflow-hidden">
-                <CardHeader className="border-b border-border/50 bg-muted/20 space-y-4">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <CardHeader className="border-b border-border/50 bg-muted/20 p-4 sm:p-6 space-y-3 sm:space-y-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
                         <div>
-                            <CardTitle className="flex items-center gap-2 text-xl">
+                            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                                 <Users className="w-5 h-5 text-primary" />
                                 Participant Roster
                                 <Badge variant="secondary" className="rounded-full font-mono text-xs">
                                     {filteredParticipants.length} / {participants.length}
                                 </Badge>
                             </CardTitle>
-                            <CardDescription>Search by name or chest number, or switch between Cards and Table view.</CardDescription>
+                            <CardDescription className="text-xs sm:text-sm">Search by name or chest number, or switch between Cards and Table view.</CardDescription>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
                             <div className="relative w-full sm:w-64">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     placeholder="Search name or chest #..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-9 pr-8 bg-background/70 border-border/60 rounded-xl"
+                                    className="pl-9 pr-8 bg-background/70 border-border/60 rounded-xl text-sm"
                                 />
                                 {searchTerm && (
                                     <button
@@ -637,7 +637,7 @@ export default function AddParticipantsPage() {
                             </div>
 
                             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                                <SelectTrigger className="w-full sm:w-[190px] bg-background/70 border-border/60 rounded-xl">
+                                <SelectTrigger className="w-full sm:w-[190px] bg-background/70 border-border/60 rounded-xl text-sm">
                                     <SelectValue placeholder="Filter by category" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -646,12 +646,12 @@ export default function AddParticipantsPage() {
                                 </SelectContent>
                             </Select>
 
-                            <div className="inline-flex rounded-xl border border-border/60 bg-background/70 p-1 self-start sm:self-auto">
+                            <div className="inline-flex rounded-xl border border-border/60 bg-background/70 p-1 self-stretch sm:self-auto justify-center sm:justify-start">
                                 <button
                                     type="button"
                                     onClick={() => setViewMode('grid')}
                                     className={cn(
-                                        'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all',
+                                        'flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
                                         viewMode === 'grid'
                                             ? 'bg-primary text-primary-foreground shadow-sm'
                                             : 'text-muted-foreground hover:text-foreground'
@@ -663,7 +663,7 @@ export default function AddParticipantsPage() {
                                     type="button"
                                     onClick={() => setViewMode('table')}
                                     className={cn(
-                                        'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all',
+                                        'flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
                                         viewMode === 'table'
                                             ? 'bg-primary text-primary-foreground shadow-sm'
                                             : 'text-muted-foreground hover:text-foreground'
@@ -684,79 +684,140 @@ export default function AddParticipantsPage() {
                     )}
                 </CardHeader>
 
-                <CardContent className={viewMode === 'table' ? 'p-0' : 'p-6'}>
+                <CardContent className={viewMode === 'table' ? 'p-0' : 'p-3.5 sm:p-6'}>
                     <div ref={gridRef}>
                         {viewMode === 'table' ? (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow className="hover:bg-transparent border-border/50">
-                                        <TableHead>Chest No.</TableHead>
-                                        <TableHead>Participant</TableHead>
-                                        <TableHead>Category</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
+                            <>
+                                {/* Mobile Card List (< md) */}
+                                <div className="block md:hidden divide-y divide-border/40 p-2 sm:p-3 space-y-2">
                                     {filteredParticipants.map((participant) => {
                                         const categoryName = categoryMap.get(participant.categoryId) || 'Unknown';
                                         return (
-                                            <TableRow
+                                            <div
                                                 key={participant.id}
-                                                className="roster-anim-item border-b border-border/40 hover:bg-muted/30 transition-colors"
+                                                className="roster-anim-item flex items-center justify-between p-3 rounded-xl bg-card/60 border border-border/40 backdrop-blur-sm"
                                             >
-                                                <TableCell>
-                                                    <Badge variant="outline" className="font-mono font-bold text-primary border-primary/25 bg-primary/10">
-                                                        #{participant.chestNumber}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-3">
-                                                        <Avatar className="h-8 w-8 border border-border/60">
-                                                            <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-cyan-500 to-blue-600 text-white">
-                                                                {participant.name.charAt(0).toUpperCase()}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                        <span className="font-medium">{participant.name}</span>
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <Avatar className="h-9 w-9 border border-border/60 shrink-0">
+                                                        <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-cyan-500 to-blue-600 text-white">
+                                                            {participant.name.charAt(0).toUpperCase()}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-sm truncate text-foreground">{participant.name}</span>
+                                                            <Badge variant="outline" className="font-mono text-[10px] font-bold text-primary border-primary/25 bg-primary/10 px-1.5 py-0">
+                                                                #{participant.chestNumber}
+                                                            </Badge>
+                                                        </div>
+                                                        <Badge variant="secondary" className="mt-1 text-[10px] px-1.5 py-0">
+                                                            {categoryName}
+                                                        </Badge>
                                                     </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant="secondary">{categoryName}</Badge>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" className="h-8 w-8 p-0 rounded-lg">
-                                                                <span className="sr-only">Open menu</span>
-                                                                <MoreHorizontal className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem onClick={() => handleEdit(participant)}>
-                                                                <Edit className="mr-2 h-4 w-4" /> Edit
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem
-                                                                onClick={() => openDeleteDialog(participant)}
-                                                                className="text-destructive focus:text-destructive"
-                                                            >
-                                                                <Trash className="mr-2 h-4 w-4" /> Delete
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </TableCell>
-                                            </TableRow>
+                                                </div>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" className="h-8 w-8 p-0 rounded-lg shrink-0">
+                                                            <span className="sr-only">Open menu</span>
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => handleEdit(participant)}>
+                                                            <Edit className="mr-2 h-4 w-4" /> Edit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            onClick={() => openDeleteDialog(participant)}
+                                                            className="text-destructive focus:text-destructive"
+                                                        >
+                                                            <Trash className="mr-2 h-4 w-4" /> Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
                                         );
                                     })}
                                     {filteredParticipants.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={4} className="h-28 text-center text-muted-foreground">
-                                                No participants found.
-                                            </TableCell>
-                                        </TableRow>
+                                        <div className="text-center text-muted-foreground py-8 text-sm">
+                                            No participants found.
+                                        </div>
                                     )}
-                                </TableBody>
-                            </Table>
+                                </div>
+
+                                {/* Desktop Table (>= md) */}
+                                <div className="hidden md:block">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="hover:bg-transparent border-border/50">
+                                                <TableHead>Chest No.</TableHead>
+                                                <TableHead>Participant</TableHead>
+                                                <TableHead>Category</TableHead>
+                                                <TableHead className="text-right">Actions</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {filteredParticipants.map((participant) => {
+                                                const categoryName = categoryMap.get(participant.categoryId) || 'Unknown';
+                                                return (
+                                                    <TableRow
+                                                        key={participant.id}
+                                                        className="roster-anim-item border-b border-border/40 hover:bg-muted/30 transition-colors"
+                                                    >
+                                                        <TableCell>
+                                                            <Badge variant="outline" className="font-mono font-bold text-primary border-primary/25 bg-primary/10">
+                                                                #{participant.chestNumber}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="flex items-center gap-3">
+                                                                <Avatar className="h-8 w-8 border border-border/60">
+                                                                    <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-cyan-500 to-blue-600 text-white">
+                                                                        {participant.name.charAt(0).toUpperCase()}
+                                                                    </AvatarFallback>
+                                                                </Avatar>
+                                                                <span className="font-medium">{participant.name}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Badge variant="secondary">{categoryName}</Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Button variant="ghost" className="h-8 w-8 p-0 rounded-lg">
+                                                                        <span className="sr-only">Open menu</span>
+                                                                        <MoreHorizontal className="h-4 w-4" />
+                                                                    </Button>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end">
+                                                                    <DropdownMenuItem onClick={() => handleEdit(participant)}>
+                                                                        <Edit className="mr-2 h-4 w-4" /> Edit
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem
+                                                                        onClick={() => openDeleteDialog(participant)}
+                                                                        className="text-destructive focus:text-destructive"
+                                                                    >
+                                                                        <Trash className="mr-2 h-4 w-4" /> Delete
+                                                                    </DropdownMenuItem>
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                            {filteredParticipants.length === 0 && (
+                                                <TableRow>
+                                                    <TableCell colSpan={4} className="h-28 text-center text-muted-foreground">
+                                                        No participants found.
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </>
                         ) : (
-                            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            <div className="grid gap-3 sm:gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 {filteredParticipants.map((participant) => {
                                     const categoryName = categoryMap.get(participant.categoryId) || 'Unknown';
                                     return (

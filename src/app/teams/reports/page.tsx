@@ -380,7 +380,7 @@ export default function ReportsPage() {
   const hasProgramFilters = programSearch.trim() !== '' || programCategoryFilter !== 'all';
 
   return (
-    <div ref={pageRef} className="relative space-y-6 pb-10">
+    <div ref={pageRef} className="relative space-y-5 sm:space-y-6 pb-10">
       <div className="pointer-events-none absolute -top-24 left-1/2 -z-10 h-72 w-[42rem] -translate-x-1/2 rounded-full bg-gradient-to-r from-primary/15 via-sky-500/10 to-violet-500/15 blur-3xl" />
 
       {/* Reports Studio Hero Banner */}
@@ -393,34 +393,34 @@ export default function ReportsPage() {
         </div>
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/65 to-transparent" />
 
-        <div className="relative z-10 flex flex-col gap-6 p-6 md:p-8 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl space-y-3">
+        <div className="relative z-10 flex flex-col gap-5 sm:gap-6 p-4 sm:p-6 md:p-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl space-y-2.5 sm:space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white backdrop-blur-md hover:bg-white/15">
+              <Badge className="border-white/15 bg-white/10 px-2.5 sm:px-3 py-1 text-xs font-medium text-white backdrop-blur-md hover:bg-white/15">
                 <Sparkles className="mr-1.5 h-3.5 w-3.5 text-amber-300" />
                 Team Reports Studio
               </Badge>
-              <Badge className="border-emerald-400/30 bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-200 backdrop-blur-md hover:bg-emerald-500/20">
+              <Badge className="border-emerald-400/30 bg-emerald-500/15 px-2.5 sm:px-3 py-1 text-xs font-medium text-emerald-200 backdrop-blur-md hover:bg-emerald-500/20">
                 <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                 {team.name}
               </Badge>
             </div>
 
-            <h1 className="font-headline text-3xl font-bold tracking-tight sm:text-4xl">
+            <h1 className="font-headline text-2xl font-bold tracking-tight sm:text-4xl">
               Team Reports &amp; Exports
             </h1>
-            <p className="text-sm leading-relaxed text-slate-300 sm:text-base">
+            <p className="text-xs sm:text-base leading-relaxed text-slate-300">
               Inspect live participant schedules and program-wise rosters for{' '}
               <span className="font-semibold text-white">{settings?.festName || 'Fest Central'}</span>, filter by
               category, and export print-ready A4 PDF reports in one click.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
             <Button
               onClick={() => handleDownloadPDF('participant')}
               disabled={isDownloading}
-              className="h-11 rounded-xl bg-primary px-5 font-medium text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:scale-[1.01]"
+              className="h-10 sm:h-11 w-full sm:w-auto rounded-xl bg-primary px-4 sm:px-5 font-medium text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:scale-[1.01]"
             >
               {downloadingReport === 'participant' ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -433,7 +433,7 @@ export default function ReportsPage() {
               variant="outline"
               onClick={() => handleDownloadPDF('program')}
               disabled={isDownloading}
-              className="h-11 rounded-xl border-white/20 bg-white/10 px-5 font-medium text-white backdrop-blur-md transition-all hover:bg-white/20 hover:text-white"
+              className="h-10 sm:h-11 w-full sm:w-auto rounded-xl border-white/20 bg-white/10 px-4 sm:px-5 font-medium text-white backdrop-blur-md transition-all hover:bg-white/20 hover:text-white"
             >
               {downloadingReport === 'program' ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -447,7 +447,7 @@ export default function ReportsPage() {
       </section>
 
       {/* KPI Strip */}
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:gap-4 grid-cols-2 xl:grid-cols-4">
         <Card
           role="button"
           tabIndex={0}
@@ -460,18 +460,18 @@ export default function ReportsPage() {
           }}
           className="reports-hero-stagger group cursor-pointer border-border/60 bg-card/80 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
         >
-          <CardContent className="flex items-center justify-between p-5">
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Team Participants</p>
-              <p className="font-headline text-3xl font-bold">
+          <CardContent className="flex items-center justify-between p-3.5 sm:p-5">
+            <div className="space-y-1 min-w-0">
+              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">Team Participants</p>
+              <p className="font-headline text-2xl sm:text-3xl font-bold">
                 <AnimatedCounter value={summary.totalParticipants} />
               </p>
-              <p className="text-xs text-muted-foreground">
-                {summary.participantsWithPrograms} assigned to programs
+              <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                {summary.participantsWithPrograms} assigned
               </p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
-              <Users className="h-6 w-6" />
+            <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110">
+              <Users className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
           </CardContent>
         </Card>
@@ -488,52 +488,52 @@ export default function ReportsPage() {
           }}
           className="reports-hero-stagger group cursor-pointer border-border/60 bg-card/80 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-indigo-500/40 hover:shadow-md"
         >
-          <CardContent className="flex items-center justify-between p-5">
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Active Programs</p>
-              <p className="font-headline text-3xl font-bold">
+          <CardContent className="flex items-center justify-between p-3.5 sm:p-5">
+            <div className="space-y-1 min-w-0">
+              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">Active Programs</p>
+              <p className="font-headline text-2xl sm:text-3xl font-bold">
                 <AnimatedCounter value={summary.activeProgramsCount} />
               </p>
-              <p className="text-xs text-muted-foreground">
-                Across {programCategories.length} program categories
+              <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                {programCategories.length} categories
               </p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-500 transition-transform duration-300 group-hover:scale-110">
-              <Mic2 className="h-6 w-6" />
+            <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-500 transition-transform duration-300 group-hover:scale-110">
+              <Mic2 className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="reports-hero-stagger border-border/60 bg-card/80 backdrop-blur-md">
-          <CardContent className="flex items-center justify-between p-5">
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Entries</p>
-              <p className="font-headline text-3xl font-bold">
+          <CardContent className="flex items-center justify-between p-3.5 sm:p-5">
+            <div className="space-y-1 min-w-0">
+              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">Total Entries</p>
+              <p className="font-headline text-2xl sm:text-3xl font-bold">
                 <AnimatedCounter value={summary.totalEntries} />
               </p>
-              <p className="text-xs text-muted-foreground">Live stage &amp; off-stage allocations</p>
+              <p className="text-[11px] sm:text-xs text-muted-foreground truncate">Live &amp; off-stage</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500">
-              <ListChecks className="h-6 w-6" />
+            <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500">
+              <ListChecks className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="reports-hero-stagger border-border/60 bg-card/80 backdrop-blur-md">
-          <CardContent className="flex items-center justify-between p-5">
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Filtered View</p>
-              <p className="font-headline text-3xl font-bold">
+          <CardContent className="flex items-center justify-between p-3.5 sm:p-5">
+            <div className="space-y-1 min-w-0">
+              <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">Filtered View</p>
+              <p className="font-headline text-2xl sm:text-3xl font-bold">
                 <AnimatedCounter
                   value={activeTab === 'participant' ? participantReportData.length : programReportData.length}
                 />
               </p>
-              <p className="text-xs text-muted-foreground">
-                {activeTab === 'participant' ? 'Participants in report' : 'Programs in report'}
+              <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                {activeTab === 'participant' ? 'In participant report' : 'In program report'}
               </p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
-              <FileText className="h-6 w-6" />
+            <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
+              <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
           </CardContent>
         </Card>
@@ -577,18 +577,18 @@ export default function ReportsPage() {
 
           <TabsContent value="participant" className="mt-0">
             <Card className="overflow-hidden rounded-2xl border-border/60 bg-card/80 shadow-sm backdrop-blur-md">
-              <CardHeader className="border-b border-border/50 bg-muted/20 pb-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <CardHeader className="border-b border-border/50 bg-muted/20 p-4 sm:p-6 pb-4 sm:pb-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <CardTitle className="font-headline text-xl">Participant-Based Report</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="font-headline text-lg sm:text-xl">Participant-Based Report</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
                       Review every team member&apos;s assigned stage and off-stage events.
                     </CardDescription>
                   </div>
                   <Button
                     onClick={() => handleDownloadPDF('participant')}
                     disabled={isDownloading}
-                    className="rounded-xl shadow-sm"
+                    className="w-full sm:w-auto rounded-xl shadow-sm"
                   >
                     {downloadingReport === 'participant' ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -599,14 +599,14 @@ export default function ReportsPage() {
                   </Button>
                 </div>
 
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="mt-3 sm:mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center">
                   <div className="relative flex-1">
                     <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       placeholder="Search by participant name or chest number..."
                       value={participantSearch}
                       onChange={(e) => setParticipantSearch(e.target.value)}
-                      className="h-10 rounded-xl border-border/60 bg-background/80 pl-10 pr-9"
+                      className="h-10 rounded-xl border-border/60 bg-background/80 pl-10 pr-9 text-sm"
                     />
                     {participantSearch && (
                       <button
@@ -621,7 +621,7 @@ export default function ReportsPage() {
                   </div>
 
                   <Select value={participantCategoryFilter} onValueChange={setParticipantCategoryFilter}>
-                    <SelectTrigger className="h-10 w-full rounded-xl border-border/60 bg-background/80 sm:w-[240px]">
+                    <SelectTrigger className="h-10 w-full rounded-xl border-border/60 bg-background/80 sm:w-[240px] text-sm">
                       <div className="flex items-center gap-2 truncate">
                         <Filter className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         <SelectValue placeholder="Filter by category..." />
@@ -645,7 +645,7 @@ export default function ReportsPage() {
                         setParticipantSearch('');
                         setParticipantCategoryFilter('all');
                       }}
-                      className="h-10 rounded-xl px-3 text-muted-foreground hover:text-foreground"
+                      className="h-10 rounded-xl px-3 text-muted-foreground hover:text-foreground w-full sm:w-auto"
                     >
                       <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
                       Reset
@@ -654,28 +654,28 @@ export default function ReportsPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="p-5 sm:p-6">
+              <CardContent className="p-3.5 sm:p-6">
                 {participantReportData.length > 0 ? (
-                  <div className="space-y-5">
+                  <div className="space-y-4 sm:space-y-5">
                     {participantReportData.map((participant) => (
                       <div
                         key={participant.id}
                         className="report-item-card overflow-hidden rounded-2xl border border-border/60 bg-background/70 shadow-sm transition-all duration-300 hover:border-primary/35 hover:shadow-md"
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/30 px-5 py-3.5">
-                          <div className="flex items-center gap-3.5">
-                            <Avatar className="h-10 w-10 border border-primary/20 bg-primary/10 text-primary">
-                              <AvatarFallback className="bg-primary/10 font-headline text-sm font-semibold text-primary">
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 border-b border-border/50 bg-muted/30 px-3.5 py-3 sm:px-5 sm:py-3.5">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9 sm:h-10 sm:w-10 border border-primary/20 bg-primary/10 text-primary shrink-0">
+                              <AvatarFallback className="bg-primary/10 font-headline text-xs sm:text-sm font-semibold text-primary">
                                 {getInitials(participant.name)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <h3 className="font-headline text-base font-bold sm:text-lg">{participant.name}</h3>
-                              <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                                <Badge variant="outline" className="rounded-md font-mono text-[11px]">
+                              <h3 className="font-headline text-sm font-bold sm:text-lg">{participant.name}</h3>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                <Badge variant="outline" className="rounded-md font-mono text-[10px] sm:text-[11px]">
                                   Chest #{participant.chestNumber}
                                 </Badge>
-                                <Badge variant="secondary" className="rounded-md text-[11px]">
+                                <Badge variant="secondary" className="rounded-md text-[10px] sm:text-[11px]">
                                   {participant.categoryName}
                                 </Badge>
                               </div>
@@ -684,14 +684,50 @@ export default function ReportsPage() {
 
                           <Badge
                             variant={participant.programs.length > 0 ? 'default' : 'outline'}
-                            className="rounded-full px-3 py-1 text-xs font-medium"
+                            className="rounded-full px-2.5 sm:px-3 py-0.5 sm:py-1 text-xs font-medium"
                           >
                             {participant.programs.length}{' '}
                             {participant.programs.length === 1 ? 'Program' : 'Programs'}
                           </Badge>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        {/* Mobile Program List (< md) */}
+                        <div className="block md:hidden divide-y divide-border/40 p-3 space-y-2">
+                          {participant.programs.length > 0 ? (
+                            participant.programs.map((program) => (
+                              <div key={program.id} className="p-2.5 rounded-xl bg-muted/20 border border-border/40 space-y-1.5">
+                                <div className="font-semibold text-sm text-foreground">{program.name}</div>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <Badge variant="outline" className="rounded-md font-normal text-[10px]">
+                                    {program.categoryName}
+                                  </Badge>
+                                  <Badge variant="secondary" className="rounded-md capitalize font-normal text-[10px]">
+                                    {program.type}
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      program.mode?.toLowerCase().includes('stage') &&
+                                      !program.mode?.toLowerCase().includes('non') &&
+                                      !program.mode?.toLowerCase().includes('off')
+                                        ? 'rounded-md border-indigo-500/30 bg-indigo-500/10 capitalize text-indigo-600 dark:text-indigo-300 text-[10px]'
+                                        : 'rounded-md border-amber-500/30 bg-amber-500/10 capitalize text-amber-700 dark:text-amber-300 text-[10px]'
+                                    }
+                                  >
+                                    {program.mode}
+                                  </Badge>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="py-4 text-center text-xs text-muted-foreground">
+                              Not assigned to any programs yet.
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Desktop Table (>= md) */}
+                        <div className="hidden md:block overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow className="bg-muted/10 hover:bg-muted/10">
@@ -778,18 +814,18 @@ export default function ReportsPage() {
 
           <TabsContent value="program" className="mt-0">
             <Card className="overflow-hidden rounded-2xl border-border/60 bg-card/80 shadow-sm backdrop-blur-md">
-              <CardHeader className="border-b border-border/50 bg-muted/20 pb-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <CardHeader className="border-b border-border/50 bg-muted/20 p-4 sm:p-6 pb-4 sm:pb-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <CardTitle className="font-headline text-xl">Program-Based Report</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="font-headline text-lg sm:text-xl">Program-Based Report</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
                       View your team&apos;s participant roster grouped by competition program.
                     </CardDescription>
                   </div>
                   <Button
                     onClick={() => handleDownloadPDF('program')}
                     disabled={isDownloading}
-                    className="rounded-xl shadow-sm"
+                    className="w-full sm:w-auto rounded-xl shadow-sm"
                   >
                     {downloadingReport === 'program' ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -800,14 +836,14 @@ export default function ReportsPage() {
                   </Button>
                 </div>
 
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="mt-3 sm:mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center">
                   <div className="relative flex-1">
                     <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       placeholder="Search assigned programs..."
                       value={programSearch}
                       onChange={(e) => setProgramSearch(e.target.value)}
-                      className="h-10 rounded-xl border-border/60 bg-background/80 pl-10 pr-9"
+                      className="h-10 rounded-xl border-border/60 bg-background/80 pl-10 pr-9 text-sm"
                     />
                     {programSearch && (
                       <button
@@ -822,7 +858,7 @@ export default function ReportsPage() {
                   </div>
 
                   <Select value={programCategoryFilter} onValueChange={setProgramCategoryFilter}>
-                    <SelectTrigger className="h-10 w-full rounded-xl border-border/60 bg-background/80 sm:w-[240px]">
+                    <SelectTrigger className="h-10 w-full rounded-xl border-border/60 bg-background/80 sm:w-[240px] text-sm">
                       <div className="flex items-center gap-2 truncate">
                         <Filter className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         <SelectValue placeholder="Filter by category..." />
@@ -846,7 +882,7 @@ export default function ReportsPage() {
                         setProgramSearch('');
                         setProgramCategoryFilter('all');
                       }}
-                      className="h-10 rounded-xl px-3 text-muted-foreground hover:text-foreground"
+                      className="h-10 rounded-xl px-3 text-muted-foreground hover:text-foreground w-full sm:w-auto"
                     >
                       <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
                       Reset
@@ -855,31 +891,31 @@ export default function ReportsPage() {
                 </div>
               </CardHeader>
 
-              <CardContent className="p-5 sm:p-6">
+              <CardContent className="p-3.5 sm:p-6">
                 {programReportData.length > 0 ? (
-                  <div className="space-y-5">
+                  <div className="space-y-4 sm:space-y-5">
                     {programReportData.map((program) => (
                       <div
                         key={program.id}
                         className="report-item-card overflow-hidden rounded-2xl border border-border/60 bg-background/70 shadow-sm transition-all duration-300 hover:border-indigo-500/35 hover:shadow-md"
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 bg-muted/30 px-5 py-3.5">
-                          <div className="flex items-center gap-3.5">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-500">
-                              <Mic2 className="h-5 w-5" />
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 border-b border-border/50 bg-muted/30 px-3.5 py-3 sm:px-5 sm:py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-500">
+                              <Mic2 className="h-4 w-4 sm:h-5 sm:w-5" />
                             </div>
                             <div>
-                              <h3 className="font-headline text-base font-bold sm:text-lg">{program.name}</h3>
-                              <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                                <Badge variant="outline" className="rounded-md text-[11px]">
+                              <h3 className="font-headline text-sm font-bold sm:text-lg">{program.name}</h3>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                <Badge variant="outline" className="rounded-md text-[10px] sm:text-[11px]">
                                   {program.categoryName}
                                 </Badge>
-                                <Badge variant="secondary" className="rounded-md text-[11px] capitalize">
+                                <Badge variant="secondary" className="rounded-md text-[10px] sm:text-[11px] capitalize">
                                   {program.type}
                                 </Badge>
                                 <Badge
                                   variant="outline"
-                                  className="rounded-md border-indigo-500/25 bg-indigo-500/10 text-[11px] capitalize text-indigo-600 dark:text-indigo-300"
+                                  className="rounded-md border-indigo-500/25 bg-indigo-500/10 text-[10px] sm:text-[11px] capitalize text-indigo-600 dark:text-indigo-300"
                                 >
                                   {program.mode}
                                 </Badge>
@@ -887,13 +923,42 @@ export default function ReportsPage() {
                             </div>
                           </div>
 
-                          <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
+                          <Badge variant="secondary" className="rounded-full px-2.5 sm:px-3 py-0.5 sm:py-1 text-xs font-medium">
                             {program.participants.length}{' '}
                             {program.participants.length === 1 ? 'Participant' : 'Participants'}
                           </Badge>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        {/* Mobile Participant List (< md) */}
+                        <div className="block md:hidden divide-y divide-border/40 p-3 space-y-2">
+                          {program.participants.length > 0 ? (
+                            program.participants.map((participant) => (
+                              <div key={participant.id} className="flex items-center justify-between p-2.5 rounded-xl bg-muted/20 border border-border/40">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <Avatar className="h-7 w-7 border border-border/60 bg-muted shrink-0">
+                                    <AvatarFallback className="text-[11px] font-semibold">
+                                      {getInitials(participant.name)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-sm truncate text-foreground">{participant.name}</p>
+                                    <p className="text-[11px] text-muted-foreground">{participant.categoryName}</p>
+                                  </div>
+                                </div>
+                                <Badge variant="outline" className="font-mono text-xs font-bold text-primary shrink-0 ml-2">
+                                  #{participant.chestNumber}
+                                </Badge>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="py-4 text-center text-xs text-muted-foreground">
+                              No participants assigned from your team.
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Desktop Table (>= md) */}
+                        <div className="hidden md:block overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow className="bg-muted/10 hover:bg-muted/10">

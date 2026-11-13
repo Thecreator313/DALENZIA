@@ -1,377 +1,748 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { collection, doc, orderBy, query, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useCachedDoc } from '@/context/firestore-cache';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Upload, Save, RefreshCw, Type, Image as ImageIcon, Layout } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { HexColorPicker } from "react-colorful";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-
-const IMGBB_API_KEY = 'feb010b50bb6cec41cb64ca52cf9c848';
-
-type TextStyle = {
-  x: number;
-  y: number;
-  fontSize: number;
-  color: string;
-  fontWeight: string;
-  textAlign: 'left' | 'center' | 'right';
-  isVisible: boolean;
-};
-
-type PosterSettings = {
-  backgroundImageUrl: string;
-  programName: TextStyle;
-  categoryName: TextStyle;
-  winner1: TextStyle;
-  winner2: TextStyle;
-  winner3: TextStyle;
-};
-
-const defaultTextStyle: TextStyle = {
-  x: 50,
-  y: 50,
-  fontSize: 24,
-  color: '#ffffff',
-  fontWeight: 'bold',
-  textAlign: 'center',
-  isVisible: true,
-};
-
-const defaultSettings: PosterSettings = {
-  backgroundImageUrl: '',
-  programName: { ...defaultTextStyle, y: 20, fontSize: 40 },
-  categoryName: { ...defaultTextStyle, y: 30, fontSize: 20, fontWeight: 'normal' },
-  winner1: { ...defaultTextStyle, y: 50, fontSize: 30, color: '#FFD700' },
-  winner2: { ...defaultTextStyle, y: 65, fontSize: 24, color: '#C0C0C0' },
-  winner3: { ...defaultTextStyle, y: 75, fontSize: 24, color: '#CD7F32' },
-};
+import { useAppSettings, useCachedCollection, useCachedDoc } from '@/context/firestore-cache';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Copy,
+  Download,
+  Edit3,
+  Eye,
+  LayoutTemplate,
+  Loader2,
+  Plus,
+  Sparkles,
+  Star,
+  Trash2,
+} from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import {
+  CANVAS_PRESETS,
+  clonePosterSettings,
+  createPosterTemplateId,
+  downloadPosterBlob,
+  ensurePosterFontsLoaded,
+  normalizePosterCatalog,
+  normalizePosterSettings,
+  resolvePreviewResult,
+  serializePosterCatalogForFirestore,
+  type PosterTemplateCatalog,
+  type PosterTemplateItem,
+} from '@/lib/poster-template';
+import {
+  ResultPosterCanvas,
+  type ResultPosterCanvasHandle,
+} from '@/components/result-poster-canvas';
+import {
+  PosterStudioEditor,
+  type PublishedResultPreviewDoc,
+} from '@/components/poster-studio-editor';
+import { cn } from '@/lib/utils';
 
 export default function PosterTemplatePage() {
-  const { data: livePosterSettings, loading } = useCachedDoc<PosterSettings>(
+  const { settings: appSettings } = useAppSettings();
+  const festName = appSettings.festName || 'Fest Central';
+
+  const { data: livePosterSettings, loading } = useCachedDoc<Record<string, unknown>>(
     'doc:settings:posterTemplate',
     () => doc(db, 'settings', 'posterTemplate')
   );
-  const [settings, setSettings] = useState<PosterSettings>(defaultSettings);
+  const { data: publishedResults } = useCachedCollection<PublishedResultPreviewDoc>(
+    'query:publishedResults:desc',
+    () => query(collection(db, 'publishedResults'), orderBy('resultNumber', 'desc'))
+  );
+
+  const [catalog, setCatalog] = useState<PosterTemplateCatalog>(() =>
+    normalizePosterCatalog(null)
+  );
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editorInitialFocus, setEditorInitialFocus] = useState<'canvas' | 'layer'>('layer');
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState('background');
-  const { toast } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Gallery live preview source
+  const [previewKey, setPreviewKey] = useState<string>('sample');
+  const [previewModalTplId, setPreviewModalTplId] = useState<string | null>(null);
+  const [modalDownloadBusy, setModalDownloadBusy] = useState(false);
+  const modalPosterRef = useRef<ResultPosterCanvasHandle>(null);
+
+  // Create template modal state
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [newTplName, setNewTplName] = useState('');
+  const [newTplPresetId, setNewTplPresetId] = useState<string>(CANVAS_PRESETS[0].id);
+  const [cloneSourceId, setCloneSourceId] = useState<string>('fresh');
+
+  // Delete confirmation modal state
+  const [deleteTargetTpl, setDeleteTargetTpl] = useState<PosterTemplateItem | null>(null);
+
+  useEffect(() => {
+    ensurePosterFontsLoaded();
+  }, []);
 
   useEffect(() => {
     if (livePosterSettings) {
-      setSettings(livePosterSettings);
+      setCatalog(normalizePosterCatalog(livePosterSettings));
     }
   }, [livePosterSettings]);
 
-  const handleSave = async () => {
+  const galleryPreviewResult = useMemo(
+    () => resolvePreviewResult(previewKey, publishedResults),
+    [previewKey, publishedResults]
+  );
+
+  const editingTemplate = useMemo(
+    () => catalog.templates.find((t) => t.id === editingTemplateId) || null,
+    [catalog.templates, editingTemplateId]
+  );
+
+  const previewModalTemplate = useMemo(
+    () => catalog.templates.find((t) => t.id === previewModalTplId) || null,
+    [catalog.templates, previewModalTplId]
+  );
+
+  const persistCatalog = async (nextCatalog: PosterTemplateCatalog, successTitle?: string) => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'settings', 'posterTemplate'), settings);
-      toast({
-        title: "Success",
-        description: "Poster template saved successfully.",
-      });
+      await setDoc(
+        doc(db, 'settings', 'posterTemplate'),
+        serializePosterCatalogForFirestore(nextCatalog)
+      );
+      setCatalog(nextCatalog);
+      if (successTitle) {
+        toast({ title: successTitle });
+      }
     } catch (error) {
-      console.error("Error saving settings:", error);
+      console.error('Error saving poster catalog:', error);
       toast({
-        title: "Error",
-        description: "Failed to save poster settings.",
-        variant: "destructive",
+        title: 'Save Failed',
+        description: 'Could not update templates in Firestore.',
+        variant: 'destructive',
       });
+      throw error;
     } finally {
       setSaving(false);
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const openCreateDialog = () => {
+    setNewTplName(`Template ${catalog.templates.length + 1}`);
+    setNewTplPresetId(CANVAS_PRESETS[0].id);
+    setCloneSourceId('fresh');
+    setCreateDialogOpen(true);
+  };
 
-    setUploading(true);
-    const formData = new FormData();
-    formData.append('image', file);
+  const handleCreateTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = newTplName.trim() || `Template ${catalog.templates.length + 1}`;
+    const preset =
+      CANVAS_PRESETS.find((p) => p.id === newTplPresetId) || CANVAS_PRESETS[0];
 
-    try {
-      const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await response.json();
-      if (data.success) {
-        setSettings(prev => ({ ...prev, backgroundImageUrl: data.data.url }));
-        toast({
-          title: "Success",
-          description: "Background image uploaded successfully.",
-        });
-      } else {
-        throw new Error(data.error?.message || 'Upload failed');
+    let baseSettings = normalizePosterSettings(null);
+    if (cloneSourceId !== 'fresh') {
+      const source = catalog.templates.find((t) => t.id === cloneSourceId);
+      if (source) {
+        baseSettings = clonePosterSettings(source.settings);
       }
-    } catch (error) {
-      console.error("Error uploading image:", error);
+    } else {
+      baseSettings = {
+        ...baseSettings,
+        canvasWidth: preset.width,
+        canvasHeight: preset.height,
+      };
+    }
+
+    const newItem: PosterTemplateItem = {
+      id: createPosterTemplateId(),
+      name: trimmedName,
+      isActive: true,
+      settings: baseSettings,
+    };
+
+    const nextCatalog: PosterTemplateCatalog = {
+      ...catalog,
+      templates: [...catalog.templates, newItem],
+    };
+
+    await persistCatalog(nextCatalog, `Created "${trimmedName}"`);
+    setCreateDialogOpen(false);
+    setEditorInitialFocus('canvas');
+    setEditingTemplateId(newItem.id);
+  };
+
+  const handleDuplicateTemplate = async (tpl: PosterTemplateItem) => {
+    const newItem: PosterTemplateItem = {
+      id: createPosterTemplateId(),
+      name: `${tpl.name} Copy`,
+      isActive: tpl.isActive,
+      settings: clonePosterSettings(tpl.settings),
+    };
+    const nextCatalog: PosterTemplateCatalog = {
+      ...catalog,
+      templates: [...catalog.templates, newItem],
+    };
+    await persistCatalog(nextCatalog, `Duplicated "${tpl.name}"`);
+  };
+
+  const handleSetDefault = async (tpl: PosterTemplateItem) => {
+    const nextCatalog: PosterTemplateCatalog = {
+      ...catalog,
+      defaultTemplateId: tpl.id,
+    };
+    await persistCatalog(nextCatalog, `"${tpl.name}" set as default template`);
+  };
+
+  const handleToggleActive = async (tpl: PosterTemplateItem) => {
+    const nextCatalog: PosterTemplateCatalog = {
+      ...catalog,
+      templates: catalog.templates.map((item) =>
+        item.id === tpl.id ? { ...item, isActive: !item.isActive } : item
+      ),
+    };
+    await persistCatalog(
+      nextCatalog,
+      !tpl.isActive
+        ? `"${tpl.name}" is now visible on result pages`
+        : `"${tpl.name}" hidden from public result pages`
+    );
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetTpl || catalog.templates.length <= 1) return;
+    const remaining = catalog.templates.filter((t) => t.id !== deleteTargetTpl.id);
+    const nextDefaultId =
+      catalog.defaultTemplateId === deleteTargetTpl.id
+        ? remaining[0].id
+        : catalog.defaultTemplateId;
+    const nextCatalog: PosterTemplateCatalog = {
+      defaultTemplateId: nextDefaultId,
+      templates: remaining,
+    };
+    const deletedName = deleteTargetTpl.name;
+    setDeleteTargetTpl(null);
+    await persistCatalog(nextCatalog, `Deleted "${deletedName}"`);
+  };
+
+  const handleModalDownload = async () => {
+    if (!modalPosterRef.current || !previewModalTemplate) return;
+    setModalDownloadBusy(true);
+    try {
+      const blob = await modalPosterRef.current.exportPngBlob();
+      const slug = previewModalTemplate.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'poster';
+      downloadPosterBlob(
+        blob,
+        `${slug}-${previewModalTemplate.settings.canvasWidth}x${previewModalTemplate.settings.canvasHeight}.png`
+      );
       toast({
-        title: "Error",
-        description: "Failed to upload image to ImgBB.",
-        variant: "destructive",
+        title: 'Preview Exported',
+        description: `Downloaded ${previewModalTemplate.settings.canvasWidth}×${previewModalTemplate.settings.canvasHeight}px PNG.`,
+      });
+    } catch (error) {
+      console.error('Modal poster export failed:', error);
+      toast({
+        title: 'Export Failed',
+        description: 'Could not export PNG. Re-upload image via Upload button if external URL blocks CORS.',
+        variant: 'destructive',
       });
     } finally {
-      setUploading(false);
+      setModalDownloadBusy(false);
     }
-  };
-
-  const updateTextStyle = (key: keyof PosterSettings, field: keyof TextStyle, value: any) => {
-    setSettings(prev => ({
-      ...prev,
-      [key]: {
-        ...(prev[key] as TextStyle),
-        [field]: value,
-      },
-    }));
-  };
-
-  const renderControlGroup = (label: string, key: keyof PosterSettings) => {
-    const style = settings[key] as TextStyle;
-    return (
-      <div className="space-y-4 p-4 border rounded-lg bg-card/50">
-        <div className="flex items-center justify-between">
-          <Label className="text-base font-semibold">{label}</Label>
-          <div className="flex items-center gap-2">
-            <Label htmlFor={`${key}-visible`} className="text-xs">Visible</Label>
-            <input
-              type="checkbox"
-              id={`${key}-visible`}
-              checked={style.isVisible}
-              onChange={(e) => updateTextStyle(key, 'isVisible', e.target.checked)}
-              className="h-4 w-4"
-            />
-          </div>
-        </div>
-
-        {style.isVisible && (
-          <>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Position X (%)</Label>
-                <Slider
-                  value={[style.x]}
-                  min={0}
-                  max={100}
-                  step={1}
-                  onValueChange={([val]) => updateTextStyle(key, 'x', val)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Position Y (%)</Label>
-                <Slider
-                  value={[style.y]}
-                  min={0}
-                  max={100}
-                  step={1}
-                  onValueChange={([val]) => updateTextStyle(key, 'y', val)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Font Size (px)</Label>
-                <Input
-                  type="number"
-                  value={style.fontSize}
-                  onChange={(e) => updateTextStyle(key, 'fontSize', Number(e.target.value))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Color</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start gap-2"
-                      style={{ backgroundColor: style.color, color: style.color === '#ffffff' ? '#000' : '#fff' }}
-                    >
-                      {style.color}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 border-none">
-                    <HexColorPicker color={style.color} onChange={(val) => updateTextStyle(key, 'color', val)} />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Alignment</Label>
-              <div className="flex gap-2">
-                {['left', 'center', 'right'].map((align) => (
-                  <Button
-                    key={align}
-                    variant={style.textAlign === align ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => updateTextStyle(key, 'textAlign', align)}
-                    className="capitalize"
-                  >
-                    {align}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    );
   };
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex h-[calc(100vh-8rem)] flex-col items-center justify-center gap-3">
+        <Loader2 className="h-9 w-9 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading Poster Templates...</p>
       </div>
     );
   }
 
+  // Dedicated Full-Screen Photo Editor View when a template is opened
+  if (editingTemplate) {
+    return (
+      <PosterStudioEditor
+        template={editingTemplate}
+        isDefault={catalog.defaultTemplateId === editingTemplate.id}
+        publishedResults={publishedResults}
+        festName={festName}
+        saving={saving}
+        initialFocus={editorInitialFocus}
+        onSaveTemplate={async (updated) => {
+          const nextCatalog: PosterTemplateCatalog = {
+            ...catalog,
+            templates: catalog.templates.map((t) => (t.id === updated.id ? updated : t)),
+          };
+          await persistCatalog(nextCatalog, `Saved "${updated.name}"`);
+        }}
+        onBack={() => setEditingTemplateId(null)}
+      />
+    );
+  }
+
+  // Main Templates Library Gallery View
   return (
-    <div className="container py-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Poster Template Designer</h1>
-          <p className="text-muted-foreground">Customize the layout and design for result posters.</p>
+    <div className="space-y-6 pb-10">
+      {/* Main Library Header */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-card/85 p-5 shadow-sm backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="font-headline text-2xl font-bold tracking-tight sm:text-3xl">
+              Poster Templates
+            </h1>
+            <Badge variant="secondary" className="rounded-full font-mono text-xs">
+              {catalog.templates.length}{' '}
+              {catalog.templates.length === 1 ? 'Template' : 'Templates'}
+            </Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Create &amp; manage multiple result poster styles. Users can switch between active
+            templates on every published result page before downloading or sharing.
+          </p>
         </div>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-          Save Template
-        </Button>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Select value={previewKey} onValueChange={setPreviewKey}>
+            <SelectTrigger className="h-10 w-[220px] rounded-xl bg-background/80 text-xs sm:text-sm">
+              <SelectValue placeholder="Preview data" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="sample">Sample: Single Winners</SelectItem>
+              <SelectItem value="sample-ties">Sample: Tied Ranks (2× Each)</SelectItem>
+              {publishedResults.slice(0, 20).map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  #{r.resultNumber} • {r.programName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button onClick={openCreateDialog} className="h-10 rounded-xl shadow-md">
+            <Plus className="mr-2 h-4 w-4" />
+            Create Template
+          </Button>
+        </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-8">
-        {/* Controls */}
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle>Configuration</CardTitle>
-            <CardDescription>Adjust settings for each element.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="background"><ImageIcon className="mr-2 h-4 w-4" /> Background</TabsTrigger>
-                <TabsTrigger value="layout"><Layout className="mr-2 h-4 w-4" /> Layout</TabsTrigger>
-                <TabsTrigger value="typography"><Type className="mr-2 h-4 w-4" /> Typography</TabsTrigger>
-              </TabsList>
+      {/* Templates Grid */}
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        {catalog.templates.map((tpl) => {
+          const isDefault = tpl.id === catalog.defaultTemplateId;
+          const aspectHint =
+            CANVAS_PRESETS.find(
+              (p) => p.width === tpl.settings.canvasWidth && p.height === tpl.settings.canvasHeight
+            )?.shortLabel || `${tpl.settings.canvasWidth}×${tpl.settings.canvasHeight}`;
 
-              <TabsContent value="background" className="space-y-4 mt-4">
-                <div className="space-y-4">
-                  <Label>Background Image</Label>
-                  <div className="flex gap-4">
-                    <Input
-                      value={settings.backgroundImageUrl}
-                      onChange={(e) => setSettings(prev => ({ ...prev, backgroundImageUrl: e.target.value }))}
-                      placeholder="https://..."
-                    />
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                      {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                    </Button>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                    />
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Upload an image to ImgBB or paste a direct URL.
-                  </p>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="layout" className="space-y-4 mt-4 h-[600px] overflow-y-auto pr-2">
-                {renderControlGroup('Program Name', 'programName')}
-                {renderControlGroup('Category Name', 'categoryName')}
-                {renderControlGroup('Winner 1 (Gold)', 'winner1')}
-                {renderControlGroup('Winner 2 (Silver)', 'winner2')}
-                {renderControlGroup('Winner 3 (Bronze)', 'winner3')}
-              </TabsContent>
-
-              <TabsContent value="typography" className="space-y-4 mt-4">
-                <div className="p-4 border rounded-lg bg-muted/50 text-center">
-                  <p className="text-muted-foreground">
-                    Typography settings are currently integrated into the Layout tab for easier positioning and styling together.
-                  </p>
-                  <Button variant="link" onClick={() => setActiveTab('layout')}>Go to Layout</Button>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        {/* Preview */}
-        <div className="sticky top-8">
-          <Card className="overflow-hidden bg-zinc-950 border-zinc-800">
-            <CardHeader className="border-b border-zinc-800 bg-zinc-900/50">
-              <CardTitle className="text-zinc-100">Live Preview</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 flex justify-center bg-zinc-900/20 min-h-[600px] items-center">
+          return (
+            <Card
+              key={tpl.id}
+              className={cn(
+                'group flex flex-col overflow-hidden border-border/70 bg-card/85 shadow-sm transition-all hover:border-primary/40 hover:shadow-lg',
+                !tpl.isActive && 'opacity-80'
+              )}
+            >
+              {/* Live Mini Poster Thumbnail */}
               <div
-                className="relative bg-white shadow-2xl overflow-hidden"
-                style={{
-                  width: '400px',
-                  height: '600px',
-                  backgroundImage: settings.backgroundImageUrl ? `url(${settings.backgroundImageUrl})` : 'none',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  backgroundColor: settings.backgroundImageUrl ? 'transparent' : '#1a1a1a'
-                }}
+                onClick={() => setPreviewModalTplId(tpl.id)}
+                className="relative flex h-72 cursor-pointer items-center justify-center overflow-hidden border-b border-border/50 bg-zinc-950 p-4"
               >
-                {!settings.backgroundImageUrl && (
-                  <div className="absolute inset-0 flex items-center justify-center text-zinc-500">
-                    No Background Image
-                  </div>
-                )}
+                <div
+                  className={cn(
+                    'overflow-hidden rounded-lg shadow-2xl transition-transform duration-300 group-hover:scale-[1.02]',
+                    tpl.settings.canvasHeight / tpl.settings.canvasWidth > 1.5
+                      ? 'w-[140px]'
+                      : tpl.settings.canvasHeight >= tpl.settings.canvasWidth
+                      ? 'w-[180px]'
+                      : 'w-[240px]'
+                  )}
+                >
+                  <ResultPosterCanvas
+                    settings={tpl.settings}
+                    result={galleryPreviewResult}
+                    festName={festName}
+                    thumbnailOnly
+                  />
+                </div>
 
-                {/* Elements */}
-                {[
-                  { key: 'programName', text: 'Dram Art' },
-                  { key: 'categoryName', text: 'General Category' },
-                  { key: 'winner1', text: '1. John Doe (Team A)' },
-                  { key: 'winner2', text: '2. Jane Smith (Team B)' },
-                  { key: 'winner3', text: '3. Bob Johnson (Team C)' },
-                ].map(({ key, text }) => {
-                  const style = settings[key as keyof PosterSettings] as TextStyle;
-                  if (!style.isVisible) return null;
-                  return (
-                    <div
-                      key={key}
-                      style={{
-                        position: 'absolute',
-                        left: `${style.x}%`,
-                        top: `${style.y}%`,
-                        transform: 'translate(-50%, -50%)',
-                        fontSize: `${style.fontSize}px`,
-                        color: style.color,
-                        fontWeight: style.fontWeight,
-                        textAlign: style.textAlign,
-                        whiteSpace: 'nowrap',
-                        width: '100%',
-                        // textShadow: '0 2px 4px rgba(0,0,0,0.5)'
-                      }}
-                    >
-                      {text}
-                    </div>
-                  );
-                })}
+                {/* Top Floating Badges */}
+                <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                  {isDefault && (
+                    <Badge className="gap-1 bg-amber-500 text-zinc-950 hover:bg-amber-500">
+                      <Star className="h-3 w-3 fill-current" />
+                      Default
+                    </Badge>
+                  )}
+                  <Badge
+                    variant="secondary"
+                    className="bg-black/70 text-[11px] text-white backdrop-blur-md"
+                  >
+                    {tpl.isActive ? 'Public' : 'Hidden'}
+                  </Badge>
+                </div>
+
+                <div className="absolute right-3 bottom-3 rounded-full bg-black/75 px-2.5 py-1 text-[11px] font-medium text-white opacity-0 backdrop-blur-md transition-opacity group-hover:opacity-100">
+                  Click to Preview
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <CardTitle className="truncate font-headline text-base">{tpl.name}</CardTitle>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <span className="font-mono">
+                        {tpl.settings.canvasWidth}×{tpl.settings.canvasHeight}
+                      </span>
+                      <span>•</span>
+                      <span>{aspectHint}</span>
+                      <span>•</span>
+                      <span>{tpl.settings.winnerSlots.length} Winner Slots</span>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="pt-1 pb-3">
+                <div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/25 px-3 py-1.5">
+                  <span className="text-xs text-muted-foreground">Visible to Public</span>
+                  <Switch
+                    checked={tpl.isActive}
+                    disabled={saving}
+                    onCheckedChange={() => handleToggleActive(tpl)}
+                  />
+                </div>
+              </CardContent>
+
+              <CardFooter className="mt-auto flex flex-wrap items-center justify-between gap-1.5 border-t border-border/50 bg-muted/15 px-4 py-3">
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditorInitialFocus('layer');
+                      setEditingTemplateId(tpl.id);
+                    }}
+                    className="h-8 rounded-lg px-3 text-xs"
+                  >
+                    <Edit3 className="mr-1.5 h-3.5 w-3.5" />
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPreviewModalTplId(tpl.id)}
+                    className="h-8 rounded-lg px-2.5 text-xs"
+                    title="Full Preview"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  {!isDefault && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={saving}
+                      onClick={() => handleSetDefault(tpl)}
+                      className="h-8 w-8 rounded-lg text-amber-500 hover:bg-amber-500/10 hover:text-amber-600"
+                      title="Set as Default Template"
+                    >
+                      <Star className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={saving}
+                    onClick={() => handleDuplicateTemplate(tpl)}
+                    className="h-8 w-8 rounded-lg"
+                    title="Duplicate Template"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                  {catalog.templates.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={saving}
+                      onClick={() => setDeleteTargetTpl(tpl)}
+                      className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      title="Delete Template"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </CardFooter>
+            </Card>
+          );
+        })}
+
+        {/* Quick "+ Create Template" Card at end of Grid */}
+        <button
+          type="button"
+          onClick={openCreateDialog}
+          className="flex min-h-[380px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border/70 bg-muted/15 p-6 text-center transition-all hover:border-primary/60 hover:bg-primary/5"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Plus className="h-6 w-6" />
+          </div>
+          <div className="space-y-1">
+            <div className="font-headline text-base font-semibold">Create New Template</div>
+            <div className="max-w-[200px] text-xs text-muted-foreground">
+              Add another poster design with its own fonts, colors, positions &amp; size.
+            </div>
+          </div>
+        </button>
       </div>
+
+      {/* Create New Template Dialog (Set Name & Canvas -> Opens Dedicated Studio Editor) */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <form onSubmit={handleCreateTemplate}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 font-headline">
+                <LayoutTemplate className="h-5 w-5 text-primary" />
+                New Poster Template
+              </DialogTitle>
+              <DialogDescription>
+                Give your poster style a name and choose a starting canvas, then open the editor to
+                upload your background and style each variable.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="my-5 space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="new-tpl-name">Template Name</Label>
+                <Input
+                  id="new-tpl-name"
+                  value={newTplName}
+                  onChange={(e) => setNewTplName(e.target.value)}
+                  placeholder="e.g. Classic Gold Portrait, Minimal Dark, WhatsApp Status"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Starting Base</Label>
+                <Select value={cloneSourceId} onValueChange={setCloneSourceId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fresh">Start Fresh Blank Template</SelectItem>
+                    {catalog.templates.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        Clone from &quot;{t.name}&quot; ({t.settings.canvasWidth}×
+                        {t.settings.canvasHeight})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {cloneSourceId === 'fresh' && (
+                <div className="space-y-2">
+                  <Label>Canvas Size Preset</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CANVAS_PRESETS.map((preset) => {
+                      const active = newTplPresetId === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => setNewTplPresetId(preset.id)}
+                          className={cn(
+                            'flex items-center justify-between rounded-xl border px-3 py-2 text-left transition-all',
+                            active
+                              ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/25'
+                              : 'border-border/60 bg-background/60 text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                          )}
+                        >
+                          <div>
+                            <div className="text-xs font-semibold">{preset.shortLabel}</div>
+                            <div className="font-mono text-[10px] opacity-80">
+                              {preset.width}×{preset.height}
+                            </div>
+                          </div>
+                          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground">
+                            {preset.aspect}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-4 w-4" />
+                )}
+                Create &amp; Open Editor
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Large Template Preview Lightbox Dialog */}
+      <Dialog
+        open={!!previewModalTemplate}
+        onOpenChange={(open) => {
+          if (!open) setPreviewModalTplId(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+          {previewModalTemplate && (
+            <>
+              <DialogHeader>
+                <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
+                  <div>
+                    <DialogTitle className="font-headline">{previewModalTemplate.name}</DialogTitle>
+                    <DialogDescription>
+                      {previewModalTemplate.settings.canvasWidth}×
+                      {previewModalTemplate.settings.canvasHeight}px •{' '}
+                      {previewModalTemplate.settings.winnerSlots.length} Winner Slots
+                    </DialogDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={previewKey} onValueChange={setPreviewKey}>
+                      <SelectTrigger className="h-8 w-[195px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sample">Sample: Single Winners</SelectItem>
+                        <SelectItem value="sample-ties">Sample: Tied Ranks (2× Each)</SelectItem>
+                        {publishedResults.slice(0, 20).map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            #{r.resultNumber} • {r.programName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="flex justify-center overflow-hidden rounded-xl border bg-zinc-950 p-4">
+                  <ResultPosterCanvas
+                    ref={modalPosterRef}
+                    settings={previewModalTemplate.settings}
+                    result={galleryPreviewResult}
+                    festName={festName}
+                    className={
+                      previewModalTemplate.settings.canvasHeight >
+                      previewModalTemplate.settings.canvasWidth
+                        ? 'w-full max-w-[440px]'
+                        : 'w-full max-w-[680px]'
+                    }
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleModalDownload}
+                    disabled={modalDownloadBusy}
+                  >
+                    {modalDownloadBusy ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+                    Download Test PNG
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      const targetId = previewModalTemplate.id;
+                      setPreviewModalTplId(null);
+                      setEditorInitialFocus('layer');
+                      setEditingTemplateId(targetId);
+                    }}
+                  >
+                    <Edit3 className="mr-2 h-4 w-4" />
+                    Edit This Template
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Template Confirmation Dialog */}
+      <AlertDialog
+        open={!!deleteTargetTpl}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTargetTpl(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete &quot;{deleteTargetTpl?.name}&quot;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the poster template from your studio and from public result pages.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Template
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

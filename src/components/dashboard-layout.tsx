@@ -19,9 +19,26 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import type { NavItem } from '@/lib/nav-links';
-import { adminNavItems, judgeNavItems, stageControlNavItems, teamNavItems } from '@/lib/nav-links';
+import {
+  adminNavItems,
+  judgeNavItems,
+  stageControlNavItems,
+  teamNavItems,
+} from '@/lib/nav-links';
+import {
+  LayoutDashboard,
+  List,
+  Megaphone,
+  Users,
+  UserCheck,
+  UserPlus,
+  BarChart,
+  Medal,
+  UserCircle,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from './theme-toggle';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,7 +62,34 @@ const navItemsMap = {
   teams: teamNavItems,
   judges: judgeNavItems,
   'stage-control': stageControlNavItems,
-}
+};
+
+type BottomNavItem = {
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+const bottomNavMap: Record<string, BottomNavItem[]> = {
+  'stage-control': [
+    { label: 'Dashboard', href: '/stage-control/dashboard', icon: LayoutDashboard },
+    { label: 'Programs', href: '/stage-control/programs', icon: List },
+    { label: 'Inform', href: '/stage-control/inform', icon: Megaphone },
+    { label: 'Results', href: '/', icon: Trophy },
+  ],
+  judges: [
+    { label: 'Dashboard', href: '/judges/dashboard', icon: LayoutDashboard },
+    { label: 'Judging Point', href: '/judges/judging-point', icon: Trophy },
+    { label: 'Profile', href: '/judges/profile', icon: UserCircle },
+    { label: 'Results', href: '/', icon: Medal },
+  ],
+  teams: [
+    { label: 'Dashboard', href: '/teams/dashboard', icon: LayoutDashboard },
+    { label: 'Add', href: '/teams/add-participants', icon: UserPlus },
+    { label: 'Assign', href: '/teams/assign-students', icon: UserCheck },
+    { label: 'Reports', href: '/teams/reports', icon: BarChart },
+  ],
+};
 
 function SidebarNav({ navItems }: { navItems: NavItem[] }) {
   const pathname = usePathname();
@@ -73,6 +117,7 @@ function SidebarNav({ navItems }: { navItems: NavItem[] }) {
 
 export function DashboardLayout({ children, panel }: DashboardLayoutProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = React.useState<User | null>(null);
   const [loading, setLoading] = React.useState(true);
   const { settings } = useAppSettings();
@@ -80,6 +125,7 @@ export function DashboardLayout({ children, panel }: DashboardLayoutProps) {
   
   const currentSection = panel === 'stage-control' ? 'Stage Control' : panel;
   const navItems = navItemsMap[panel];
+  const bottomNavItems = bottomNavMap[panel];
   const [isLogoutAlertOpen, setIsLogoutAlertOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -168,23 +214,84 @@ export function DashboardLayout({ children, panel }: DashboardLayoutProps) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <header className="flex h-14 items-center gap-4 border-b bg-card px-4 sm:px-6 sticky top-0 bg-opacity-80 backdrop-blur-sm z-10">
-          <SidebarTrigger className="md:hidden" />
-          <h1 className="text-xl font-semibold capitalize font-headline">
+        <header className="flex h-14 items-center gap-2.5 sm:gap-4 border-b bg-card/90 px-3 sm:px-6 sticky top-0 backdrop-blur-md z-30">
+          <SidebarTrigger className="md:hidden shrink-0" />
+          <h1 className="text-base sm:text-xl font-semibold capitalize font-headline truncate">
             {currentSection}
           </h1>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
             <ThemeToggle />
-             <Button variant="outline" asChild>
-                <Link href="/"><Trophy className="mr-2 h-4 w-4"/> Results</Link>
+            <Button variant="outline" size="sm" asChild className="h-8 px-2 sm:px-3 text-xs sm:text-sm">
+              <Link href="/">
+                <Trophy className="h-3.5 w-3.5 sm:mr-1.5 shrink-0 text-amber-500" />
+                <span className="hidden sm:inline">Results</span>
+              </Link>
             </Button>
           </div>
         </header>
-        <main className="flex-1 p-4 sm:p-6">
+        <main
+          className={cn(
+            'flex-1 p-3 sm:p-6',
+            bottomNavItems ? 'pb-24 md:pb-6' : 'pb-6'
+          )}
+        >
           <FirestoreCacheProvider key={`${panel}:${user.id}`}>
             {children}
           </FirestoreCacheProvider>
         </main>
+
+        {/* Mobile Bottom Navigation Bar */}
+        {bottomNavItems && (
+          <nav
+            aria-label="Mobile Bottom Navigation"
+            className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border/70 bg-card/90 backdrop-blur-xl shadow-[0_-8px_25px_rgba(0,0,0,0.12)] pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1.5 px-2"
+          >
+            <div className="grid grid-flow-col auto-cols-fr items-center justify-around gap-1">
+              {bottomNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive =
+                  item.href === '/'
+                    ? pathname === '/'
+                    : item.href.endsWith('/dashboard')
+                    ? pathname === item.href
+                    : pathname.startsWith(item.href);
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'group flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all select-none active:scale-95 text-center',
+                      isActive
+                        ? 'bg-primary/15 text-primary font-semibold shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                    )}
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <Icon
+                        className={cn(
+                          'h-5 w-5 transition-transform duration-200',
+                          isActive ? 'scale-110 text-primary' : 'group-hover:scale-105'
+                        )}
+                      />
+                      {isActive && (
+                        <span className="absolute -top-1 -right-1 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        'mt-1 text-[11px] leading-tight truncate max-w-[72px]',
+                        isActive ? 'text-primary font-semibold' : 'text-muted-foreground font-medium'
+                      )}
+                    >
+                      {item.label}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+        )}
       </SidebarInset>
     </SidebarProvider>
   );

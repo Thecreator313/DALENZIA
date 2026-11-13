@@ -257,7 +257,7 @@ export default function JudgeDashboard() {
   ];
 
   return (
-    <div ref={pageRef} className="relative min-h-screen space-y-7 pb-10">
+    <div ref={pageRef} className="relative min-h-screen space-y-5 sm:space-y-7 pb-6 sm:pb-10">
       {/* Ambient Background */}
       <div className="pointer-events-none fixed inset-0 -z-10 h-full w-full overflow-hidden">
         <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-indigo-500/10 blur-[130px]" />
@@ -265,13 +265,13 @@ export default function JudgeDashboard() {
       </div>
 
       {/* Hero Command Banner with Animated Mascot & 3D Crest */}
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white shadow-2xl">
+      <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white shadow-2xl">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.22),transparent_50%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.14),transparent_55%)]" />
 
-        <div className="relative z-10 grid items-center gap-6 p-6 sm:p-8 lg:grid-cols-[1.38fr_1fr]">
-          <div className="space-y-6">
-            <div className="judge-dash-stagger flex flex-wrap items-center gap-2.5">
-              <Badge className="border-indigo-400/30 bg-indigo-500/15 px-3.5 py-1 text-xs font-semibold text-indigo-200 hover:bg-indigo-500/20">
+        <div className="relative z-10 grid items-center gap-5 sm:gap-6 p-4 sm:p-8 lg:grid-cols-[1.38fr_1fr]">
+          <div className="space-y-5 sm:space-y-6">
+            <div className="judge-dash-stagger flex flex-wrap items-center gap-2">
+              <Badge className="border-indigo-400/30 bg-indigo-500/15 px-3 py-1 text-[11px] sm:text-xs font-semibold text-indigo-200 hover:bg-indigo-500/20">
                 <span className="relative mr-2 flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
@@ -279,49 +279,49 @@ export default function JudgeDashboard() {
                 Judge Portal • {settings.festName || 'Fest Central'}
               </Badge>
 
-              <Badge className="border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-slate-200 backdrop-blur-md hover:bg-white/15">
+              <Badge className="border-white/15 bg-white/10 px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-slate-200 backdrop-blur-md hover:bg-white/15">
                 <Calendar className="mr-1.5 h-3.5 w-3.5 text-amber-300" />
                 {formattedDate}
               </Badge>
             </div>
 
-            <div className="judge-dash-stagger space-y-2">
-              <h1 className="font-headline text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+            <div className="judge-dash-stagger space-y-1.5 sm:space-y-2">
+              <h1 className="font-headline text-2xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl break-words">
                 <span className="bg-gradient-to-r from-white via-indigo-100 to-amber-300 bg-clip-text text-transparent">
                   Welcome, {judge?.name || 'Judge'}
                 </span>
               </h1>
-              <p className="max-w-xl text-sm leading-relaxed text-slate-300 sm:text-base">
+              <p className="max-w-xl text-xs sm:text-sm leading-relaxed text-slate-300 sm:text-base">
                 Review assigned competitions, track reported stage entries in real time, and submit
                 verified marks directly from Judging Point.
               </p>
             </div>
 
             {/* Judging Progress Meter */}
-            <div className="judge-dash-stagger max-w-xl space-y-2 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md">
-              <div className="flex items-center justify-between text-xs sm:text-sm">
+            <div className="judge-dash-stagger max-w-xl space-y-2 rounded-xl sm:rounded-2xl border border-white/10 bg-white/5 p-3.5 sm:p-4 backdrop-blur-md">
+              <div className="flex flex-wrap items-center justify-between gap-1 text-xs sm:text-sm">
                 <span className="font-medium text-slate-300">Overall Judging Progress</span>
                 <span className="font-mono font-semibold text-amber-300">
                   {metrics.completedCount} / {metrics.assignedCount} Programs ({metrics.overallPct}%)
                 </span>
               </div>
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/10">
+              <div className="h-2 sm:h-2.5 w-full overflow-hidden rounded-full bg-white/10">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-indigo-400 via-emerald-400 to-amber-400 transition-all duration-700"
                   style={{ width: `${metrics.overallPct}%` }}
                 />
               </div>
-              <p className="text-xs text-slate-300">
+              <p className="text-[11px] sm:text-xs text-slate-300">
                 {metrics.totalScoredEntries} of {metrics.totalReportedEntries} reported entries scored
                 across your panel.
               </p>
             </div>
 
-            <div className="judge-dash-stagger flex flex-wrap items-center gap-3">
+            <div className="judge-dash-stagger flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
               <Button
                 asChild
-                size="lg"
-                className="rounded-xl border-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500 text-white shadow-lg shadow-indigo-500/25 transition-all hover:-translate-y-0.5 hover:opacity-95"
+                size="default"
+                className="rounded-xl border-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-amber-500 text-white shadow-lg shadow-indigo-500/25 transition-all hover:-translate-y-0.5 hover:opacity-95 justify-center h-10 sm:h-11 text-xs sm:text-sm"
               >
                 <Link href="/judges/judging-point">
                   <Trophy className="mr-2 h-4 w-4" />
@@ -331,8 +331,8 @@ export default function JudgeDashboard() {
               <Button
                 asChild
                 variant="outline"
-                size="lg"
-                className="rounded-xl border-white/20 bg-white/10 text-white backdrop-blur-md hover:bg-white/20 hover:text-white"
+                size="default"
+                className="rounded-xl border-white/20 bg-white/10 text-white backdrop-blur-md hover:bg-white/20 hover:text-white justify-center h-10 sm:h-11 text-xs sm:text-sm"
               >
                 <Link href="/judges/profile">
                   <UserIcon className="mr-2 h-4 w-4" />
@@ -349,19 +349,20 @@ export default function JudgeDashboard() {
             footerLeftText={`${metrics.totalReportedEntries} Reported`}
             footerRightText={`${metrics.overallPct}% Scored`}
             frameTone="dark"
+            className="h-60 sm:h-80 lg:h-[330px]"
           />
         </div>
       </section>
 
       {/* KPI Cards */}
-      <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         {statCards.map((item) => {
           const Icon = item.icon;
           return (
             <Link key={item.title} href={item.href} className="group block">
               <Card
                 onMouseMove={handleCardPointerMove}
-                className="judge-dash-card relative h-full overflow-hidden rounded-2xl border-border/60 bg-card/75 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl"
+                className="judge-dash-card relative h-full overflow-hidden rounded-xl sm:rounded-2xl border-border/60 bg-card/75 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl"
               >
                 <div className={cn('h-1 w-full bg-gradient-to-r', item.accent)} />
                 <div
@@ -371,21 +372,21 @@ export default function JudgeDashboard() {
                       'radial-gradient(280px circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(99,102,241,0.12), transparent 60%)',
                   }}
                 />
-                <CardHeader className="relative z-10 flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardHeader className="relative z-10 flex flex-row items-center justify-between space-y-0 p-3 sm:p-5 pb-1 sm:pb-2">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate mr-1">
                     {item.title}
                   </CardTitle>
-                  <div className={cn('rounded-xl border p-2', item.iconColor)}>
-                    <Icon className="h-4 w-4" />
+                  <div className={cn('rounded-lg sm:rounded-xl border p-1.5 sm:p-2 shrink-0', item.iconColor)}>
+                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </div>
                 </CardHeader>
-                <CardContent className="relative z-10">
-                  <div className="font-headline text-3xl font-bold tracking-tight">
+                <CardContent className="relative z-10 p-3 sm:p-5 pt-0">
+                  <div className="font-headline text-2xl sm:text-3xl font-bold tracking-tight">
                     <AnimatedCounter value={item.value} />
                   </div>
-                  <div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{item.subtitle}</span>
-                    <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
+                  <div className="mt-1 flex items-center justify-between text-[11px] sm:text-xs text-muted-foreground">
+                    <span className="truncate">{item.subtitle}</span>
+                    <ArrowRight className="h-3 w-3 shrink-0 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100 hidden sm:inline-block" />
                   </div>
                 </CardContent>
               </Card>
@@ -395,20 +396,20 @@ export default function JudgeDashboard() {
       </section>
 
       {/* Assigned Judging Queue + Quick Guide */}
-      <section className="grid gap-6 lg:grid-cols-12">
-        <Card className="judge-dash-card overflow-hidden rounded-2xl border-border/60 bg-card/75 shadow-lg backdrop-blur-xl lg:col-span-8">
-          <CardHeader className="border-b border-border/50 bg-muted/20">
-            <div className="flex items-center justify-between gap-3">
+      <section className="grid gap-5 sm:gap-6 lg:grid-cols-12">
+        <Card className="judge-dash-card overflow-hidden rounded-xl sm:rounded-2xl border-border/60 bg-card/75 shadow-lg backdrop-blur-xl lg:col-span-8">
+          <CardHeader className="border-b border-border/50 bg-muted/20 p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <CardTitle className="flex items-center gap-2 font-headline text-xl">
+                <CardTitle className="flex items-center gap-2 font-headline text-lg sm:text-xl">
                   <Activity className="h-5 w-5 text-indigo-500" />
                   Your Judging Queue
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-xs sm:text-sm">
                   Click any event to open live code-letter scoring sheets.
                 </CardDescription>
               </div>
-              <Button variant="outline" size="sm" asChild className="rounded-xl">
+              <Button variant="outline" size="sm" asChild className="rounded-xl self-start sm:self-auto text-xs">
                 <Link href="/judges/judging-point">
                   All Events <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                 </Link>
@@ -416,7 +417,7 @@ export default function JudgeDashboard() {
             </div>
           </CardHeader>
 
-          <CardContent className="p-5">
+          <CardContent className="p-3.5 sm:p-5">
             {metrics.programRows.length > 0 ? (
               <div className="space-y-3">
                 {metrics.programRows.map(({ program, categoryName, reportedCount, scoredCount, pct, status }) => {
@@ -425,13 +426,13 @@ export default function JudgeDashboard() {
                     <Link
                       key={program.id}
                       href={`/judges/judging-point/${program.id}`}
-                      className="group block rounded-2xl border border-border/50 bg-background/60 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-500/40 hover:bg-muted/35 hover:shadow-md"
+                      className="group block rounded-xl sm:rounded-2xl border border-border/50 bg-background/60 p-3.5 sm:p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-500/40 hover:bg-muted/35 hover:shadow-md"
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex min-w-0 items-center gap-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
                           <div
                             className={cn(
-                              'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
+                              'flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border',
                               isOnStage
                                 ? 'border-sky-500/25 bg-sky-500/10 text-sky-500'
                                 : 'border-purple-500/25 bg-purple-500/10 text-purple-500'
@@ -440,25 +441,25 @@ export default function JudgeDashboard() {
                             {isOnStage ? <Mic2 className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
                           </div>
                           <div className="min-w-0">
-                            <p className="truncate font-semibold transition-colors group-hover:text-primary">
+                            <p className="truncate font-semibold text-sm sm:text-base transition-colors group-hover:text-primary">
                               {program.name}
                             </p>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                              <Badge variant="outline" className="rounded-md text-[11px]">
+                              <Badge variant="outline" className="rounded-md text-[10px] sm:text-[11px] px-1.5 py-0.5">
                                 {categoryName}
                               </Badge>
-                              <Badge variant="secondary" className="rounded-md text-[11px] capitalize">
+                              <Badge variant="secondary" className="rounded-md text-[10px] sm:text-[11px] capitalize px-1.5 py-0.5">
                                 {program.type}
                               </Badge>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2 self-end sm:self-auto ml-auto sm:ml-0">
                           <Badge
                             variant="outline"
                             className={cn(
-                              'rounded-full text-xs',
+                              'rounded-full text-[11px] sm:text-xs',
                               status === 'completed'
                                 ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
                                 : status === 'in_progress'
@@ -476,11 +477,11 @@ export default function JudgeDashboard() {
                               ? 'Ready to Score'
                               : 'Awaiting Stage Report'}
                           </Badge>
-                          <ArrowRight className="h-4 w-4 text-muted-foreground opacity-50 transition-all group-hover:translate-x-1 group-hover:text-primary group-hover:opacity-100" />
+                          <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground opacity-50 transition-all group-hover:translate-x-1 group-hover:text-primary group-hover:opacity-100" />
                         </div>
                       </div>
 
-                      <div className="mt-3 space-y-1.5">
+                      <div className="mt-2.5 sm:mt-3 space-y-1.5">
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>Entries Scored</span>
                           <span className="font-mono font-semibold text-foreground">
@@ -515,15 +516,15 @@ export default function JudgeDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="judge-dash-card flex flex-col justify-between overflow-hidden rounded-2xl border-border/60 bg-card/75 shadow-lg backdrop-blur-xl lg:col-span-4">
-          <CardHeader className="border-b border-border/50 bg-muted/20">
-            <CardTitle className="font-headline text-xl">Quick Controls</CardTitle>
-            <CardDescription>Navigate your judging workspace.</CardDescription>
+        <Card className="judge-dash-card flex flex-col justify-between overflow-hidden rounded-xl sm:rounded-2xl border-border/60 bg-card/75 shadow-lg backdrop-blur-xl lg:col-span-4">
+          <CardHeader className="border-b border-border/50 bg-muted/20 p-4 sm:p-5">
+            <CardTitle className="font-headline text-lg sm:text-xl">Quick Controls</CardTitle>
+            <CardDescription className="text-xs">Navigate your judging workspace.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 p-5">
+          <CardContent className="space-y-3 p-4 sm:p-5">
             <Link
               href="/judges/judging-point"
-              className="group flex items-center justify-between rounded-2xl border border-indigo-500/25 bg-indigo-500/10 p-4 transition-all hover:-translate-y-0.5 hover:border-indigo-500/45 hover:shadow-md"
+              className="group flex items-center justify-between rounded-xl sm:rounded-2xl border border-indigo-500/25 bg-indigo-500/10 p-3.5 sm:p-4 transition-all hover:-translate-y-0.5 hover:border-indigo-500/45 hover:shadow-md"
             >
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500 text-white shadow-sm">
@@ -539,7 +540,7 @@ export default function JudgeDashboard() {
 
             <Link
               href="/judges/profile"
-              className="group flex items-center justify-between rounded-2xl border border-border/60 bg-background/60 p-4 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+              className="group flex items-center justify-between rounded-xl sm:rounded-2xl border border-border/60 bg-background/60 p-3.5 sm:p-4 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
             >
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-muted text-foreground">
@@ -553,7 +554,7 @@ export default function JudgeDashboard() {
               <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
             </Link>
 
-            <div className="rounded-2xl border border-border/50 bg-muted/25 p-4 text-xs leading-relaxed text-muted-foreground">
+            <div className="rounded-xl sm:rounded-2xl border border-border/50 bg-muted/25 p-3.5 sm:p-4 text-xs leading-relaxed text-muted-foreground">
               Scores are matched anonymously using participant <strong className="text-foreground">Code Letters</strong>{' '}
               issued by Stage Control and sync automatically once saved.
             </div>

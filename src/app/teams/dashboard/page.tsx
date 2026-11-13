@@ -220,7 +220,7 @@ export default function TeamDashboard() {
   ];
 
   return (
-    <div ref={pageRef} className="space-y-8 relative min-h-screen pb-8">
+    <div ref={pageRef} className="space-y-5 sm:space-y-8 relative min-h-screen pb-6 sm:pb-8">
       {/* Ambient Background */}
       <div className="fixed inset-0 -z-10 h-full w-full overflow-hidden pointer-events-none">
         <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-blue-500/10 blur-[120px]" />
@@ -229,13 +229,13 @@ export default function TeamDashboard() {
       </div>
 
       {/* Hero Command Banner with Interactive Three.js Crest */}
-      <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/85 via-card/65 to-primary/10 backdrop-blur-xl shadow-xl">
+      <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-border/60 bg-gradient-to-br from-card/85 via-card/65 to-primary/10 backdrop-blur-xl shadow-xl">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.16),transparent_55%),radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.12),transparent_50%)] pointer-events-none" />
-        <div className="grid lg:grid-cols-[1.45fr_1fr] items-center gap-6 p-6 sm:p-8 relative z-10">
-          <div className="space-y-6">
-            <div className="space-y-3">
+        <div className="grid lg:grid-cols-[1.45fr_1fr] items-center gap-5 sm:gap-6 p-4 sm:p-8 relative z-10">
+          <div className="space-y-5 sm:space-y-6">
+            <div className="space-y-2.5 sm:space-y-3">
               <div className="team-dash-stagger inline-flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3.5 py-1 text-xs font-semibold text-primary">
+                <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
@@ -249,46 +249,46 @@ export default function TeamDashboard() {
               </div>
 
               <div className="team-dash-stagger">
-                <h1 className="text-3xl sm:text-4xl font-bold font-headline tracking-tight bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent">
+                <h1 className="text-2xl sm:text-4xl font-bold font-headline tracking-tight bg-gradient-to-r from-foreground via-foreground to-primary bg-clip-text text-transparent break-words">
                   {team.name}
                 </h1>
-                <p className="text-muted-foreground mt-1.5 max-w-xl text-sm sm:text-base">
+                <p className="text-muted-foreground mt-1 max-w-xl text-xs sm:text-base">
                   Track team roster growth, monitor program assignment progress, and jump straight to participant registration.
                 </p>
               </div>
             </div>
 
             {/* Readiness Progress Bar */}
-            <div className="team-dash-stagger rounded-2xl border border-border/60 bg-background/55 backdrop-blur-md p-4 space-y-2.5 max-w-xl">
-              <div className="flex items-center justify-between text-xs sm:text-sm">
+            <div className="team-dash-stagger rounded-xl sm:rounded-2xl border border-border/60 bg-background/55 backdrop-blur-md p-3.5 sm:p-4 space-y-2.5 max-w-xl">
+              <div className="flex flex-wrap items-center justify-between gap-1 text-xs sm:text-sm">
                 <span className="font-medium text-muted-foreground">Program Readiness</span>
                 <span className="font-mono font-semibold text-foreground">
                   {stats.fullyAssigned} / {totalPrograms} Full ({completionPct}%)
                 </span>
               </div>
-              <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+              <div className="h-2 sm:h-2.5 w-full rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 transition-all duration-700"
                   style={{ width: `${completionPct}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] sm:text-xs text-muted-foreground">
                 <strong className="text-foreground">{assignedProgramCount}</strong> of {totalPrograms} programs have at least one participant assigned.
               </p>
             </div>
 
-            <div className="team-dash-stagger flex flex-wrap gap-3">
+            <div className="team-dash-stagger flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
               <Button
                 asChild
-                size="lg"
-                className="rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-200 bg-gradient-to-r from-blue-600 via-primary to-indigo-600 text-white border-0"
+                size="default"
+                className="rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-200 bg-gradient-to-r from-blue-600 via-primary to-indigo-600 text-white border-0 justify-center h-10 sm:h-11 text-xs sm:text-sm"
               >
                 <Link href="/teams/add-participants"><UserPlus className="mr-2 h-4 w-4" /> Add Participants</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="rounded-xl bg-background/60 backdrop-blur-md border-border/60 hover:border-primary/40">
+              <Button asChild size="default" variant="outline" className="rounded-xl bg-background/60 backdrop-blur-md border-border/60 hover:border-primary/40 justify-center h-10 sm:h-11 text-xs sm:text-sm">
                 <Link href="/teams/assign-students"><UserCheck className="mr-2 h-4 w-4" /> Assign Participants</Link>
               </Button>
-              <Button asChild size="lg" variant="ghost" className="rounded-xl hover:bg-muted/60">
+              <Button asChild size="default" variant="ghost" className="rounded-xl hover:bg-muted/60 justify-center h-10 sm:h-11 text-xs sm:text-sm">
                 <Link href="/teams/reports"><BarChart3 className="mr-2 h-4 w-4" /> Reports</Link>
               </Button>
             </div>
@@ -302,29 +302,30 @@ export default function TeamDashboard() {
             footerLeftText={`${stats.participants} Members`}
             footerRightText={`${completionPct}% Ready`}
             frameTone="adaptive"
+            className="h-60 sm:h-80 lg:h-[330px]"
           />
         </div>
       </section>
 
       {/* GSAP Animated KPI Cards */}
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         {statItems.map((item) => (
           <Link key={item.title} href={item.href} className="block group">
-            <Card className="team-dash-card relative overflow-hidden rounded-2xl border-border/60 bg-card/60 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
+            <Card className="team-dash-card relative overflow-hidden rounded-xl sm:rounded-2xl border-border/60 bg-card/60 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
               <div className={cn('h-1 w-full bg-gradient-to-r', item.strip)} />
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-5 pb-1 sm:pb-2">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate mr-1">
                   {item.title}
                 </CardTitle>
-                <div className={cn('p-2 rounded-xl border transition-transform duration-200 group-hover:scale-110', item.accent)}>
-                  <item.icon className="h-4 w-4" />
+                <div className={cn('p-1.5 sm:p-2 rounded-lg sm:rounded-xl border transition-transform duration-200 group-hover:scale-110 shrink-0', item.accent)}>
+                  <item.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </div>
               </CardHeader>
-              <CardContent className="flex items-end justify-between">
-                <div className="text-3xl font-bold font-headline tracking-tight">
+              <CardContent className="p-3 sm:p-5 pt-0 flex items-end justify-between">
+                <div className="text-2xl sm:text-3xl font-bold font-headline tracking-tight">
                   <AnimatedCounter value={item.value} />
                 </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all hidden sm:inline-block" />
               </CardContent>
             </Card>
           </Link>
@@ -332,17 +333,17 @@ export default function TeamDashboard() {
       </div>
 
       {/* Recent Program Assignments */}
-      <Card className="team-dash-card border-border/60 bg-card/55 backdrop-blur-xl shadow-lg overflow-hidden">
-        <CardHeader className="border-b border-border/50 bg-muted/20">
+      <Card className="team-dash-card border-border/60 bg-card/55 backdrop-blur-xl shadow-lg overflow-hidden rounded-xl sm:rounded-2xl">
+        <CardHeader className="border-b border-border/50 bg-muted/20 p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <CardTitle className="flex items-center gap-2 text-xl">
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl font-headline">
                 <ClipboardCheck className="w-5 h-5 text-primary" />
                 Recent Program Assignments
               </CardTitle>
-              <CardDescription>Latest programs your team members are entered in.</CardDescription>
+              <CardDescription className="text-xs sm:text-sm">Latest programs your team members are entered in.</CardDescription>
             </div>
-            <Button variant="outline" size="sm" asChild className="rounded-xl self-start sm:self-auto">
+            <Button variant="outline" size="sm" asChild className="rounded-xl self-start sm:self-auto text-xs">
               <Link href="/teams/assign-students">
                 Manage All <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
               </Link>
@@ -350,7 +351,46 @@ export default function TeamDashboard() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
+          {/* Mobile Card View for Recent Assignments */}
+          <div className="block md:hidden p-3 space-y-3">
+            {recentAssignments.length > 0 ? (
+              recentAssignments.map((program) => (
+                <div
+                  key={program.id}
+                  className="rounded-xl border border-border/50 bg-background/60 p-3.5 space-y-2.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-sm">{program.name}</p>
+                    <Badge variant="outline" className="capitalize text-[10px] px-1.5 py-0.2 shrink-0">
+                      {program.type}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Assigned Slots:</span>
+                    <span className="font-mono font-semibold text-foreground">
+                      {program.participantNames.length} / {program.participantsCount}
+                    </span>
+                  </div>
+                  {program.participantNames.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {program.participantNames.map((name, idx) => (
+                        <Badge key={idx} variant="secondary" className="bg-primary/10 text-primary text-[10px] px-2 py-0.5">
+                          {name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-center py-8 text-xs text-muted-foreground">
+                No assignments have been made yet.
+              </p>
+            )}
+          </div>
+
+          {/* Desktop Table View */}
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow className="hover:bg-transparent border-border/50">
                 <TableHead>Program Name</TableHead>

@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
+import { ClientRedirect } from '@/components/client-redirect';
 
 export default function StageControlPage() {
-  redirect('/stage-control/dashboard')
+  return <ClientRedirect to="/stage-control/dashboard" />;
 }

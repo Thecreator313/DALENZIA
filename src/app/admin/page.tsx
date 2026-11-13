@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
+import { ClientRedirect } from '@/components/client-redirect';
 
 export default function AdminPage() {
-  redirect('/admin/dashboard')
+  return <ClientRedirect to="/admin/dashboard" />;
 }

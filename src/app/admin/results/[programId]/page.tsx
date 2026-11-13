@@ -1,28 +1,42 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   collection,
   query,
   where,
   doc,
   getDocs,
+  onSnapshot,
   runTransaction,
   orderBy,
   limit,
 } from 'firebase/firestore';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { db } from '@/lib/firebase';
-import { useCachedDoc, useSharedCollection } from '@/context/firestore-cache';
+import { useCachedDoc, useSharedCollection, useAppSettings } from '@/context/firestore-cache';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Loader2, ArrowLeft, Download, Trophy, Megaphone, Unplug } from 'lucide-react';
+import { Loader2, ArrowLeft, Download, Trophy, Megaphone, Unplug, FileImage, Settings2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { normalizePosterCatalog, type PosterResultInput } from '@/lib/poster-template';
+import { ResultPosterCanvas, type ResultPosterCanvasHandle } from '@/components/result-poster-canvas';
+import { PosterShareActions } from '@/components/poster-share-actions';
+import { PosterTemplateSelector } from '@/components/poster-template-selector';
 import type { Program as BaseProgram } from '@/app/admin/programs/page';
 import type { Participant as BaseParticipant } from '@/app/teams/add-participants/page';
 import type { Team } from '@/app/admin/teams/page';
@@ -96,13 +110,60 @@ export default function ProgramResultPage() {
     'doc:points:gradeAndRankPoints',
     () => doc(db, 'points', 'gradeAndRankPoints')
   );
+  const { data: rawPosterTemplate } = useCachedDoc<Record<string, unknown>>(
+    'doc:settings:posterTemplate',
+    () => doc(db, 'settings', 'posterTemplate')
+  );
+  const { settings: appSettings } = useAppSettings();
+  const festName = appSettings.festName || 'Fest Central';
+  const posterCatalog = useMemo(
+    () => normalizePosterCatalog(rawPosterTemplate),
+    [rawPosterTemplate]
+  );
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('tpl-default');
+
+  useEffect(() => {
+    setSelectedTemplateId((prev) =>
+      posterCatalog.templates.some((t) => t.id === prev)
+        ? prev
+        : posterCatalog.defaultTemplateId
+    );
+  }, [posterCatalog]);
+
+  const activeTemplate = useMemo(
+    () =>
+      posterCatalog.templates.find((t) => t.id === selectedTemplateId) ||
+      posterCatalog.templates[0],
+    [posterCatalog.templates, selectedTemplateId]
+  );
+  const posterSettings = activeTemplate.settings;
 
   // UI states
+  const posterRef = useRef<ResultPosterCanvasHandle | null>(null);
+  const [publishedResultNumber, setPublishedResultNumber] = useState<number | undefined>(undefined);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isUnpublishing, setIsUnpublishing] = useState(false);
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertType, setAlertType] = useState<'publish' | 'unpublish' | null>(null);
+
+  useEffect(() => {
+    if (!programId) return;
+    const q = query(
+      collection(db, 'publishedResults'),
+      where('programId', '==', programId),
+      limit(1)
+    );
+    const unsubscribe = onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        setPublishedResultNumber(typeof data.resultNumber === 'number' ? data.resultNumber : undefined);
+      } else {
+        setPublishedResultNumber(undefined);
+      }
+    });
+    return () => unsubscribe();
+  }, [programId]);
 
   const judges = useMemo(
     () => allUsers.filter((u) => u.role === 'judges'),
@@ -210,6 +271,31 @@ export default function ProgramResultPage() {
     
     return finalResults;
   }, [programId, programData, pointsSettings, assignments, scores, students, teams, judges]);
+
+  const posterResultData = useMemo<PosterResultInput>(() => {
+    const winners: Record<string, { name: string; teamName: string }[]> = {
+      '1': [],
+      '2': [],
+      '3': [],
+    };
+    results.forEach((res) => {
+      if (res.rank <= 3) {
+        if (!winners[res.rank]) winners[res.rank] = [];
+        winners[res.rank].push({ name: res.name, teamName: res.teamName });
+      }
+    });
+    return {
+      resultNumber: publishedResultNumber,
+      programName: program?.name || 'Program Result',
+      categoryName: program?.categoryName || 'Category',
+      winners,
+    };
+  }, [program?.name, program?.categoryName, publishedResultNumber, results]);
+
+  const publicShareUrl = useMemo(() => {
+    if (!publishedResultNumber || typeof window === 'undefined') return undefined;
+    return `${window.location.origin}/results/${publishedResultNumber}`;
+  }, [publishedResultNumber]);
 
 
   const handleDownloadPDF = () => {
@@ -343,7 +429,7 @@ export default function ProgramResultPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
             <Button variant="outline" size="icon" onClick={() => router.back()}>
                 <ArrowLeft className="h-4 w-4" />
@@ -353,7 +439,64 @@ export default function ProgramResultPage() {
                 <p className="text-muted-foreground">{program?.categoryName}</p>
             </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" disabled={results.length === 0}>
+                  <FileImage className="mr-2 h-4 w-4" />
+                  Result Poster
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+                <DialogHeader>
+                  <div className="flex flex-wrap items-start justify-between gap-3 pr-6">
+                    <div>
+                      <DialogTitle>
+                        {program?.name || 'Program'} — Result Poster
+                      </DialogTitle>
+                      <DialogDescription>
+                        {program?.categoryName || 'Category'} •{' '}
+                        {publishedResultNumber ? `Result #${publishedResultNumber}` : 'Pre-publish Preview'} •{' '}
+                        {posterSettings.canvasWidth}×{posterSettings.canvasHeight}px
+                      </DialogDescription>
+                    </div>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href="/admin/poster-template">
+                        <Settings2 className="mr-2 h-4 w-4" />
+                        Customize Template
+                      </Link>
+                    </Button>
+                  </div>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <PosterTemplateSelector
+                    templates={posterCatalog.templates}
+                    selectedId={activeTemplate.id}
+                    onSelect={setSelectedTemplateId}
+                  />
+                  <div className="rounded-xl border bg-muted/20 p-3 flex justify-center overflow-hidden">
+                    <ResultPosterCanvas
+                      ref={posterRef}
+                      settings={posterSettings}
+                      result={posterResultData}
+                      festName={festName}
+                      className={
+                        posterSettings.canvasHeight > posterSettings.canvasWidth
+                          ? "w-full max-w-[440px]"
+                          : "w-full max-w-[700px]"
+                      }
+                    />
+                  </div>
+                  <PosterShareActions
+                    posterRef={posterRef}
+                    result={posterResultData}
+                    festName={festName}
+                    templateName={activeTemplate.name}
+                    shareUrl={publicShareUrl}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
             <Button onClick={handleDownloadPDF} disabled={isDownloading} variant="outline">
                 {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                 Download PDF

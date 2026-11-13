@@ -1,20 +1,30 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { collection, onSnapshot, query, where, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useAppSettings } from '@/context/firestore-cache';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Trophy, ArrowLeft, Crown, Medal, Share2, Sparkles, Search, Loader2 } from "lucide-react";
+import { Trophy, ArrowLeft, Crown, Medal, Share2, Sparkles, Search, Loader2, Maximize2, FileImage } from "lucide-react";
 import { Badge } from '@/components/ui/badge';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import html2canvas from 'html2canvas';
-import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
-import { Download, FileImage } from "lucide-react";
-import { useRef } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+import { ThemeToggle } from '@/components/theme-toggle';
+import { toast } from '@/hooks/use-toast';
+import {
+    normalizePosterCatalog,
+    type PosterTemplateCatalog,
+} from '@/lib/poster-template';
+import {
+    ResultPosterCanvas,
+    type ResultPosterCanvasHandle,
+} from '@/components/result-poster-canvas';
+import { PosterShareActions } from '@/components/poster-share-actions';
+import { PosterTemplateSelector } from '@/components/poster-template-selector';
 
 type PublishedResult = {
     id: string;
@@ -22,25 +32,6 @@ type PublishedResult = {
     programName: string;
     categoryName: string;
     winners: Record<string, { name: string, teamName: string }[]>;
-};
-
-type TextStyle = {
-    x: number;
-    y: number;
-    fontSize: number;
-    color: string;
-    fontWeight: string;
-    textAlign: 'left' | 'center' | 'right';
-    isVisible: boolean;
-};
-
-type PosterSettings = {
-    backgroundImageUrl: string;
-    programName: TextStyle;
-    categoryName: TextStyle;
-    winner1: TextStyle;
-    winner2: TextStyle;
-    winner3: TextStyle;
 };
 
 const PodiumStep = ({ rank, winners, delay }: { rank: string, winners: { name: string, teamName: string }[], delay: number }) => {
@@ -87,38 +78,69 @@ export default function PublicResultDetailPage() {
     const params = useParams();
     const router = useRouter();
     const resultId = params.resultId as string;
-    const posterRef = useRef<HTMLDivElement>(null);
-    const [posterSettings, setPosterSettings] = useState<PosterSettings | null>(null);
+    const posterRef = useRef<ResultPosterCanvasHandle | null>(null);
+    const { settings: appSettings } = useAppSettings();
+    const festName = appSettings.festName || 'Fest Central';
+    const [posterCatalog, setPosterCatalog] = useState<PosterTemplateCatalog>(() =>
+        normalizePosterCatalog(null)
+    );
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string>('tpl-default');
 
     useEffect(() => {
         const docRef = doc(db, 'settings', 'posterTemplate');
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            if (docSnap.exists()) {
-                setPosterSettings(docSnap.data() as PosterSettings);
-            }
+            const normalized = normalizePosterCatalog(docSnap.exists() ? docSnap.data() : null);
+            const visible = normalized.templates.filter((t) => t.isActive);
+            const pool = visible.length > 0 ? visible : normalized.templates;
+            setPosterCatalog(normalized);
+            setSelectedTemplateId((prev) => {
+                if (pool.some((t) => t.id === prev)) return prev;
+                const defaultVisible = pool.find((t) => t.id === normalized.defaultTemplateId);
+                return defaultVisible ? defaultVisible.id : pool[0].id;
+            });
         }, (error) => {
             console.error("Error listening to poster settings:", error);
         });
         return () => unsubscribe();
     }, []);
 
-    const handleDownloadPoster = async () => {
-        if (!posterRef.current) return;
+    const publicTemplates = useMemo(() => {
+        const visible = posterCatalog.templates.filter((t) => t.isActive);
+        return visible.length > 0 ? visible : posterCatalog.templates;
+    }, [posterCatalog.templates]);
+
+    const activeTemplate = useMemo(
+        () =>
+            publicTemplates.find((t) => t.id === selectedTemplateId) ||
+            publicTemplates.find((t) => t.id === posterCatalog.defaultTemplateId) ||
+            publicTemplates[0],
+        [posterCatalog.defaultTemplateId, publicTemplates, selectedTemplateId]
+    );
+    const posterSettings = activeTemplate.settings;
+
+    const handleShareLink = async () => {
+        const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+        const title = result ? `Result #${result.resultNumber} - ${result.programName}` : festName;
 
         try {
-            const canvas = await html2canvas(posterRef.current, {
-                scale: 2,
-                backgroundColor: null,
-                useCORS: true,
-            });
-
-            const image = canvas.toDataURL("image/png");
-            const link = document.createElement("a");
-            link.href = image;
-            link.download = `result-${result?.programName || 'poster'}.png`;
-            link.click();
-        } catch (error) {
-            console.error("Error generating poster:", error);
+            if (typeof navigator !== 'undefined' && navigator.share) {
+                await navigator.share({
+                    title,
+                    text: result ? `${festName}: ${result.programName} (${result.categoryName}) official result` : title,
+                    url: shareUrl,
+                });
+                return;
+            }
+            if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText && shareUrl) {
+                await navigator.clipboard.writeText(shareUrl);
+                toast({
+                    title: 'Result Link Copied',
+                    description: 'Result page link copied to clipboard.',
+                });
+            }
+        } catch (err) {
+            if (err instanceof DOMException && err.name === 'AbortError') return;
+            console.error('Failed to share link:', err);
         }
     };
 
@@ -168,7 +190,7 @@ export default function PublicResultDetailPage() {
             <div className="fixed inset-0 -z-10 h-full w-full bg-background overflow-hidden">
                 <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-primary/10 blur-[120px] animate-pulse" />
                 <div className="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-purple-500/10 blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
-                <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+                <div className="absolute inset-0 bg-[radial-gradient(#ffffff16_1px,transparent_1px)] [background-size:24px_24px] [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
             </div>
 
             <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-background/60 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
@@ -181,9 +203,10 @@ export default function PublicResultDetailPage() {
                             </div>
                         </div>
                         <span className="text-xl font-bold font-headline tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-                            Fest Central
+                            {festName}
                         </span>
                     </Link>
+                    <ThemeToggle />
                 </div>
             </header>
 
@@ -249,150 +272,118 @@ export default function PublicResultDetailPage() {
                             </div>
                         </div>
 
+                        {/* Official Auto-Generated Result Poster Showcase */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.7 }}
+                        >
+                            <Card className="border-white/10 bg-card/50 backdrop-blur-sm overflow-hidden shadow-xl">
+                                <CardHeader className="border-b border-white/5 bg-muted/20">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div>
+                                            <CardTitle className="text-lg flex items-center gap-2">
+                                                <FileImage className="h-5 w-5 text-primary" />
+                                                Official Result Poster
+                                                <Badge variant="secondary" className="font-mono text-xs font-normal">
+                                                    {posterSettings.canvasWidth}×{posterSettings.canvasHeight}
+                                                </Badge>
+                                            </CardTitle>
+                                            <CardDescription>
+                                                Download high-resolution poster PNG or share directly to WhatsApp.
+                                            </CardDescription>
+                                        </div>
+                                        <Dialog>
+                                            <DialogTrigger asChild>
+                                                <Button variant="outline" size="sm" className="gap-2 self-start sm:self-auto">
+                                                    <Maximize2 className="h-4 w-4" />
+                                                    Full Preview
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto bg-background/95 backdrop-blur-xl border-white/10">
+                                                <DialogHeader>
+                                                    <DialogTitle>
+                                                        {result.programName} — Official Result Poster
+                                                    </DialogTitle>
+                                                    <DialogDescription>
+                                                        {result.categoryName} • Result #{result.resultNumber} ({posterSettings.canvasWidth}×{posterSettings.canvasHeight}px)
+                                                    </DialogDescription>
+                                                </DialogHeader>
+                                                <div className="space-y-4">
+                                                    <PosterTemplateSelector
+                                                        templates={publicTemplates}
+                                                        selectedId={activeTemplate.id}
+                                                        onSelect={setSelectedTemplateId}
+                                                    />
+                                                    <div className="rounded-xl border border-white/10 bg-black/50 p-3 flex justify-center overflow-hidden">
+                                                        <ResultPosterCanvas
+                                                            settings={posterSettings}
+                                                            result={result}
+                                                            festName={festName}
+                                                            className={
+                                                                posterSettings.canvasHeight > posterSettings.canvasWidth
+                                                                    ? "w-full max-w-[440px]"
+                                                                    : "w-full max-w-[700px]"
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <PosterShareActions
+                                                        posterRef={posterRef}
+                                                        result={result}
+                                                        festName={festName}
+                                                        templateName={activeTemplate.name}
+                                                        compact
+                                                    />
+                                                </div>
+                                            </DialogContent>
+                                        </Dialog>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-4 sm:p-6 space-y-5">
+                                    <PosterTemplateSelector
+                                        templates={publicTemplates}
+                                        selectedId={activeTemplate.id}
+                                        onSelect={setSelectedTemplateId}
+                                    />
+                                    <div className="rounded-xl border border-white/10 bg-black/30 p-3 sm:p-5 flex justify-center">
+                                        <ResultPosterCanvas
+                                            ref={posterRef}
+                                            settings={posterSettings}
+                                            result={result}
+                                            festName={festName}
+                                            className={
+                                                posterSettings.canvasHeight > posterSettings.canvasWidth
+                                                    ? "w-full max-w-[520px]"
+                                                    : "w-full max-w-[760px]"
+                                            }
+                                        />
+                                    </div>
+                                    <PosterShareActions
+                                        posterRef={posterRef}
+                                        result={result}
+                                        festName={festName}
+                                        templateName={activeTemplate.name}
+                                    />
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+
                         {/* Other Winners / Details Card */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.8 }}
+                            transition={{ delay: 0.85 }}
                         >
                             <Card className="border-white/10 bg-card/40 backdrop-blur-sm overflow-hidden">
                                 <CardHeader className="border-b border-white/5 bg-muted/20">
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
                                         <CardTitle className="text-lg">Full Result Details</CardTitle>
-                                        <Button variant="outline" size="sm" className="gap-2">
-                                            <Share2 className="h-4 w-4" />
-                                            Share
-                                        </Button>
-                                        <Dialog>
-                                            <DialogTrigger asChild>
-                                                <Button variant="default" size="sm" className="gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white border-0">
-                                                    <FileImage className="h-4 w-4" />
-                                                    View Poster
-                                                </Button>
-                                            </DialogTrigger>
-                                            <DialogContent className="max-w-3xl bg-background/95 backdrop-blur-xl border-white/10">
-                                                <DialogTitle className="sr-only">Result Poster</DialogTitle>
-                                                <div className="flex flex-col gap-6">
-                                                    <div className="flex items-center justify-between">
-                                                        <h2 className="text-xl font-semibold">Result Poster</h2>
-                                                        <Button onClick={handleDownloadPoster} className="gap-2">
-                                                            <Download className="h-4 w-4" />
-                                                            Download PNG
-                                                        </Button>
-                                                    </div>
-
-                                                    {/* Poster Preview Area */}
-                                                    <div className="overflow-hidden rounded-xl border border-white/10 bg-black/50 p-4 flex justify-center">
-                                                        <div
-                                                            ref={posterRef}
-                                                            className="w-[600px] min-h-[800px] bg-white relative overflow-hidden flex flex-col shadow-2xl"
-                                                            style={{
-                                                                backgroundImage: posterSettings?.backgroundImageUrl ? `url(${posterSettings.backgroundImageUrl})` : 'none',
-                                                                backgroundSize: 'cover',
-                                                                backgroundPosition: 'center',
-                                                                backgroundColor: posterSettings?.backgroundImageUrl ? 'transparent' : '#1a1a1a'
-                                                            }}
-                                                        >
-                                                            {!posterSettings ? (
-                                                                <div className="flex items-center justify-center h-full text-zinc-500">Loading Template...</div>
-                                                            ) : (
-                                                                <>
-                                                                    {/* Program Name */}
-                                                                    {posterSettings.programName.isVisible && (
-                                                                        <div style={{
-                                                                            position: 'absolute',
-                                                                            left: `${posterSettings.programName.x}%`,
-                                                                            top: `${posterSettings.programName.y}%`,
-                                                                            transform: 'translate(-50%, -50%)',
-                                                                            fontSize: `${posterSettings.programName.fontSize}px`,
-                                                                            color: posterSettings.programName.color,
-                                                                            fontWeight: posterSettings.programName.fontWeight,
-                                                                            textAlign: posterSettings.programName.textAlign,
-                                                                            width: '100%',
-                                                                            whiteSpace: 'nowrap'
-                                                                        }}>
-                                                                            {result.programName}
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* Category Name */}
-                                                                    {posterSettings.categoryName.isVisible && (
-                                                                        <div style={{
-                                                                            position: 'absolute',
-                                                                            left: `${posterSettings.categoryName.x}%`,
-                                                                            top: `${posterSettings.categoryName.y}%`,
-                                                                            transform: 'translate(-50%, -50%)',
-                                                                            fontSize: `${posterSettings.categoryName.fontSize}px`,
-                                                                            color: posterSettings.categoryName.color,
-                                                                            fontWeight: posterSettings.categoryName.fontWeight,
-                                                                            textAlign: posterSettings.categoryName.textAlign,
-                                                                            width: '100%',
-                                                                            whiteSpace: 'nowrap'
-                                                                        }}>
-                                                                            {result.categoryName}
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* Winner 1 */}
-                                                                    {posterSettings.winner1.isVisible && result.winners['1']?.map((winner, idx) => (
-                                                                        <div key={`1-${idx}`} style={{
-                                                                            position: 'absolute',
-                                                                            left: `${posterSettings.winner1.x}%`,
-                                                                            top: `${posterSettings.winner1.y + (idx * 5)}%`,
-                                                                            transform: 'translate(-50%, -50%)',
-                                                                            fontSize: `${posterSettings.winner1.fontSize}px`,
-                                                                            color: posterSettings.winner1.color,
-                                                                            fontWeight: posterSettings.winner1.fontWeight,
-                                                                            textAlign: posterSettings.winner1.textAlign,
-                                                                            width: '100%',
-                                                                            whiteSpace: 'nowrap'
-                                                                        }}>
-                                                                            1. {winner.name} ({winner.teamName})
-                                                                        </div>
-                                                                    ))}
-
-                                                                    {/* Winner 2 */}
-                                                                    {posterSettings.winner2.isVisible && result.winners['2']?.map((winner, idx) => (
-                                                                        <div key={`2-${idx}`} style={{
-                                                                            position: 'absolute',
-                                                                            left: `${posterSettings.winner2.x}%`,
-                                                                            top: `${posterSettings.winner2.y + (idx * 5)}%`,
-                                                                            transform: 'translate(-50%, -50%)',
-                                                                            fontSize: `${posterSettings.winner2.fontSize}px`,
-                                                                            color: posterSettings.winner2.color,
-                                                                            fontWeight: posterSettings.winner2.fontWeight,
-                                                                            textAlign: posterSettings.winner2.textAlign,
-                                                                            width: '100%',
-                                                                            whiteSpace: 'nowrap'
-                                                                        }}>
-                                                                            2. {winner.name} ({winner.teamName})
-                                                                        </div>
-                                                                    ))}
-
-                                                                    {/* Winner 3 */}
-                                                                    {posterSettings.winner3.isVisible && result.winners['3']?.map((winner, idx) => (
-                                                                        <div key={`3-${idx}`} style={{
-                                                                            position: 'absolute',
-                                                                            left: `${posterSettings.winner3.x}%`,
-                                                                            top: `${posterSettings.winner3.y + (idx * 5)}%`,
-                                                                            transform: 'translate(-50%, -50%)',
-                                                                            fontSize: `${posterSettings.winner3.fontSize}px`,
-                                                                            color: posterSettings.winner3.color,
-                                                                            fontWeight: posterSettings.winner3.fontWeight,
-                                                                            textAlign: posterSettings.winner3.textAlign,
-                                                                            width: '100%',
-                                                                            whiteSpace: 'nowrap'
-                                                                        }}>
-                                                                            3. {winner.name} ({winner.teamName})
-                                                                        </div>
-                                                                    ))}
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </DialogContent>
-                                        </Dialog>
+                                        <div className="flex items-center gap-2">
+                                            <Button variant="outline" size="sm" className="gap-2" onClick={handleShareLink}>
+                                                <Share2 className="h-4 w-4" />
+                                                Share Link
+                                            </Button>
+                                        </div>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="p-0">
